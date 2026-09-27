@@ -1,0 +1,12 @@
+# 构建产物与依赖（不入库）
+node_modules/
+desktop/src-tauri/target/
+target/
+
+# 保险库数据文件：密码永远不入 git
+*.vault
+*.vault.tmp
+
+# 系统杂项
+Thumbs.db
+.DS_Store

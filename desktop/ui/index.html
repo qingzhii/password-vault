@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>密码保险库</title>
+<style>
+/* ============ 设计变量 ============ */
+:root{
+  --bg0:#0a0d13; --bg1:#0f141d; --bg2:#151b27; --bg3:#1b2231; --bg4:#222b3d;
+  --line:#232b3d; --line2:#2e3850;
+  --tx0:#eef1f8; --tx1:#a9b3c6; --tx2:#737e96;
+  --acc:#6d8dff; --acc2:#9a7bff; --accSoft:rgba(109,141,255,.13);
+  --ok:#41d392; --warn:#f5b04d; --err:#f47174;
+  --r:14px; --rs:9px;
+  --sh:0 12px 34px rgba(0,0,0,.4);
+  --font:"Segoe UI",system-ui,-apple-system,"Microsoft YaHei","PingFang SC",sans-serif;
+  --mono:ui-monospace,Consolas,"Cascadia Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--bg0);color:var(--tx0);font-size:14px;overflow:hidden}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#28314a;border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+button{font-family:inherit;cursor:pointer}
+input,textarea,select{font-family:inherit;color:var(--tx0)}
+a{color:var(--acc)}
+.ic{width:16px;height:16px;flex:none;vertical-align:-3px}
+
+/* ============ 通用控件 ============ */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:var(--rs);
+  border:1px solid var(--line2);background:var(--bg3);color:var(--tx0);font-size:13.5px;
+  transition:background .15s,border-color .15s,transform .06s;user-select:none}
+.btn:hover{background:var(--bg4)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));border:none;color:#fff;
+  box-shadow:0 4px 16px rgba(109,141,255,.32);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{background:var(--err);border:none;color:#fff;font-weight:600}
+.btn.danger-ghost{background:transparent;border-color:transparent;color:var(--err)}
+.btn.danger-ghost:hover{background:rgba(244,113,116,.1);border-color:rgba(244,113,116,.3)}
+.btn.big{width:100%;justify-content:center;padding:12px;font-size:14.5px;border-radius:11px}
+.btn.small{padding:5px 11px;font-size:12.5px}
+.btn:disabled{opacity:.55;cursor:default;transform:none}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;
+  border:none;border-radius:8px;background:transparent;color:var(--tx2);transition:all .14s}
+.ibtn:hover{background:var(--bg4);color:var(--tx0)}
+.ibtn .ic{width:15.5px;height:15.5px}
+.ibtn.fav.on{color:var(--warn)}
+.link{background:none;border:none;color:var(--acc);font-size:12.5px;padding:0}
+.link:hover{text-decoration:underline}
+.input{width:100%;padding:9px 12px;border-radius:var(--rs);border:1px solid var(--line2);
+  background:#0c1119;font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
+.input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--accSoft)}
+textarea.input{resize:vertical;min-height:70px;line-height:1.55}
+select.input{appearance:auto;cursor:pointer}
+.input-row{display:flex;gap:8px;align-items:center}
+.input-row .input{flex:1}
+.flabel{display:block;font-size:12.5px;color:var(--tx1);margin:14px 0 6px;font-weight:600;letter-spacing:.02em}
+.mono{font-family:var(--mono)}
+.meter{display:flex;align-items:center;gap:4px;margin-top:8px;height:14px}
+.meter i{width:22px;height:4px;border-radius:99px;background:var(--bg4);transition:background .2s}
+.meter b{font-size:11px;font-weight:600;margin-left:6px;color:var(--tx2)}
+.meter.s0 i:nth-child(1){background:var(--err)} .meter.s0 b{color:var(--err)}
+.meter.s1 i:nth-child(-n+2){background:var(--warn)} .meter.s1 b{color:var(--warn)}
+.meter.s2 i:nth-child(-n+3){background:var(--acc)} .meter.s2 b{color:var(--acc)}
+.meter.s3 i:nth-child(-n+4){background:var(--ok)} .meter.s3 b{color:var(--ok)}
+.chip{display:inline-block;background:var(--accSoft);color:var(--acc);border-radius:999px;
+  padding:2.5px 10px;font-size:11.5px;font-weight:600}
+
+/* ============ 锁屏 ============ */
+.lockview{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:var(--bg0);overflow:hidden;z-index:50}
+.orb{position:absolute;border-radius:50%;pointer-events:none}
+.orb-a{width:520px;height:520px;left:-140px;top:-160px;background:radial-gradient(circle,rgba(59,79,216,.55),transparent 68%);animation:float 14s ease-in-out infinite alternate}
+.orb-b{width:560px;height:560px;right:-180px;bottom:-200px;background:radial-gradient(circle,rgba(109,63,208,.5),transparent 68%);animation:float 17s ease-in-out infinite alternate-reverse}
+@keyframes float{from{transform:translate(0,0) scale(1)}to{transform:translate(60px,40px) scale(1.12)}}
+@media (prefers-reduced-motion: reduce){.orb{animation:none}}
+.lock-card{position:relative;width:392px;max-width:92vw;background:rgba(19,25,37,.97);
+  border:1px solid var(--line2);border-radius:20px;padding:36px 34px 26px;box-shadow:var(--sh);animation:cardIn .35s ease}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.lock-card.shake{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
+.lock-logo{display:flex;justify-content:center;margin-bottom:14px}
+.lock-card h1{font-size:20px;text-align:center;letter-spacing:.04em}
+.lock-sub{font-size:12.5px;color:var(--tx1);text-align:center;margin:8px 0 6px;line-height:1.6}
+.lock-warn{display:flex;gap:9px;align-items:flex-start;font-size:12px;color:var(--warn);
+  background:rgba(245,176,77,.08);border:1px solid rgba(245,176,77,.25);border-radius:10px;
+  padding:10px 12px;margin:16px 0 4px;line-height:1.6}
+.lock-warn .ic{width:14px;height:14px;margin-top:2px}
+.lock-err{font-size:12.5px;color:var(--err);text-align:center;min-height:18px;margin-top:12px}
+.lock-foot{font-size:11px;color:var(--tx2);text-align:center;margin-top:20px;letter-spacing:.05em}
+.lock-more{text-align:center;margin-top:14px}
+
+/* ============ 主界面布局 ============ */
+.appview{display:grid;grid-template-columns:236px minmax(330px,420px) 1fr;height:100vh;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sidebar{background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;
+  padding:16px 12px 14px;overflow:hidden}
+.sidebar,.list-pane,.detail-pane{min-height:0}
+.brand{display:flex;align-items:center;gap:11px;padding:2px 8px 18px}
+.brand-t b{display:block;font-size:15px;letter-spacing:.03em}
+.brand-t span{display:block;font-size:10px;color:var(--tx2);letter-spacing:.22em;margin-top:3px}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:10px;
+  border:none;background:none;color:var(--tx1);font-size:13.5px;text-align:left;transition:all .14s;margin-bottom:2px}
+.nav-item:hover{background:var(--bg3);color:var(--tx0)}
+.nav-item.active{background:var(--accSoft);color:var(--acc);font-weight:600}
+.nav-item .ic{width:16px;height:16px}
+.nav-item .cnt{margin-left:auto;font-size:11.5px;color:var(--tx2);background:var(--bg3);
+  border-radius:99px;padding:1px 8px;min-width:22px;text-align:center}
+.nav-item.active .cnt{background:rgba(109,141,255,.18);color:var(--acc)}
+.nav-label{font-size:11px;color:var(--tx2);letter-spacing:.14em;margin:16px 12px 7px;font-weight:600}
+#navTags{flex:1;min-height:0;overflow-y:auto}
+.tag-item{display:flex;align-items:center;gap:9px;width:100%;padding:7px 12px;border-radius:9px;border:none;
+  background:none;color:var(--tx1);font-size:13px;text-align:left;transition:all .13s}
+.tag-item:hover{background:var(--bg3);color:var(--tx0)}
+.tag-item.active{background:var(--accSoft);color:var(--acc);font-weight:600}
+.tag-item .cnt{margin-left:auto;font-size:11px;color:var(--tx2)}
+.sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
+
+/* ============ 列表栏 ============ */
+.list-pane{background:var(--bg1);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.list-head{padding:14px 14px 10px;display:flex;gap:9px;align-items:center}
+.search{position:relative;flex:1}
+.search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--tx2);width:15px;height:15px}
+.search .input{padding-left:34px;font-size:13px}
+.batch-bar{display:flex;align-items:center;gap:8px;padding:2px 14px 8px;font-size:12.5px;color:var(--tx1);flex:none}
+.batch-bar b{color:var(--acc);font-size:14px}
+.rowchk{display:flex;align-items:center;flex:none;cursor:pointer}
+.rowchk input{width:15px;height:15px;accent-color:var(--acc);pointer-events:none}
+.tpl-row{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+.d-banner{display:flex;gap:9px;align-items:flex-start;background:rgba(245,176,77,.08);border:1px solid rgba(245,176,77,.25);
+  color:var(--warn);border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.6;margin-bottom:14px}
+.d-banner .ic{width:14px;height:14px;margin-top:2px;flex:none}
+.entry-row.deleted{opacity:.55}
+.chip .ic{width:11px;height:11px;vertical-align:-1.5px}
+.chip.grp{background:rgba(65,211,146,.1);color:var(--ok)}
+.entry-list{flex:1;overflow-y:auto;padding:2px 8px 14px}
+.entry-row{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;cursor:pointer;
+  transition:background .12s;margin-bottom:2px;border:1px solid transparent}
+.entry-row:hover{background:var(--bg3)}
+.entry-row.sel{background:var(--bg3);border-color:var(--line2);box-shadow:inset 3px 0 0 var(--acc)}
+.avatar{width:38px;height:38px;flex:none;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+.avatar.big{width:52px;height:52px;border-radius:14px;font-size:20px}
+.e-main{flex:1;min-width:0}
+.e-title{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:5px}
+.fav-mark{color:var(--warn);display:inline-flex}
+.fav-mark .ic{width:12.5px;height:12.5px}
+.e-sub{font-size:11.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2.5px}
+.e-acts{display:none;gap:2px}
+.entry-row:hover .e-acts{display:flex}
+
+/* ============ 详情栏 ============ */
+.detail-pane{overflow-y:auto;min-width:0}
+.d-head{display:flex;align-items:center;gap:14px;padding:24px 26px 18px;border-bottom:1px solid var(--line)}
+.d-tt{flex:1;min-width:0}
+.d-tt h2{font-size:19px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.d-tags{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+.d-actions{display:flex;gap:7px;align-items:center;flex:none}
+.d-body{padding:10px 26px 26px}
+.frow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.frow:last-of-type{border-bottom:none}
+.flabel2{width:86px;flex:none;font-size:12.5px;color:var(--tx2)}
+.fval{flex:1;min-width:0;font-size:13.5px;word-break:break-all;line-height:1.5}
+.fval .pw-mask{letter-spacing:2px;font-family:var(--mono);color:var(--tx1)}
+.fval a{color:var(--acc);text-decoration:none}
+.fval a:hover{text-decoration:underline}
+.notes-box{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
+  font-size:13px;color:var(--tx1);line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.meta-line{display:flex;gap:18px;margin-top:18px;font-size:11.5px;color:var(--tx2)}
+.meta-line span{display:inline-flex;align-items:center;gap:5px}
+.meta-line .ic{width:12.5px;height:12.5px}
+.empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--tx2)}
+.empty svg{width:64px;height:64px;opacity:.35}
+.empty p{font-size:13px;line-height:1.8;text-align:center}
+
+/* ============ 弹窗 ============ */
+.overlay{position:fixed;inset:0;background:rgba(5,7,11,.72);
+  display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;transition:opacity .16s}
+.overlay.show{opacity:1}
+.modal{background:var(--bg2);border:1px solid var(--line2);border-radius:17px;box-shadow:var(--sh);
+  width:min(520px,93vw);max-height:88vh;display:flex;flex-direction:column;
+  transform:translateY(10px) scale(.985);transition:transform .18s}
+.overlay.show .modal{transform:none}
+.m-head{display:flex;align-items:center;justify-content:space-between;padding:17px 22px 0}
+.m-title{font-size:15.5px;font-weight:700;letter-spacing:.02em}
+.m-body{padding:8px 22px 6px;overflow-y:auto}
+.m-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px 20px}
+.gen-box{background:var(--bg1);border:1px solid var(--line2);border-radius:12px;padding:14px;margin-top:10px}
+.gen-out{display:flex;align-items:center;gap:8px;background:#0c1119;border:1px solid var(--line2);
+  border-radius:9px;padding:9px 11px}
+.gen-out code{flex:1;font-family:var(--mono);font-size:13.5px;word-break:break-all;user-select:all;color:var(--ok)}
+.range-row{display:flex;align-items:center;gap:11px;margin:13px 0 9px;font-size:12.5px;color:var(--tx1)}
+.range-row input[type=range]{flex:1;accent-color:var(--acc)}
+.range-row b{font-family:var(--mono);font-size:13px;color:var(--acc);min-width:26px;text-align:right}
+.chk-row{display:flex;flex-wrap:wrap;gap:7px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--tx1);
+  background:var(--bg3);border:1px solid var(--line2);padding:5px 11px;border-radius:999px;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--acc);cursor:pointer}
+.chk:has(input:checked){border-color:var(--acc);color:var(--tx0);background:var(--accSoft)}
+.cf-row{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+.cf-row .cf-name{flex:0 0 34%;min-width:0}
+.cf-row .cf-val{flex:1;min-width:0}
+.set-group{margin-bottom:6px}
+.set-group>.sg-title{font-size:11px;color:var(--tx2);letter-spacing:.14em;font-weight:700;margin:16px 0 4px}
+.set-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.set-row:last-child{border-bottom:none}
+.set-info{flex:1;min-width:0}
+.set-label{font-size:13.5px;font-weight:600}
+.set-desc{font-size:11.5px;color:var(--tx2);margin-top:3px;line-height:1.5}
+.set-row .input{width:130px;flex:none}
+.file-status{font-size:12px;color:var(--tx2);margin:8px 0 0;line-height:1.6;word-break:break-all}
+.file-status.ok{color:var(--ok)}
+
+/* ============ Toast ============ */
+#toastRoot{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:200;pointer-events:none}
+.toast{background:rgba(27,34,49,.96);border:1px solid var(--line2);border-radius:999px;padding:10px 20px;
+  font-size:13px;box-shadow:var(--sh);display:flex;align-items:center;gap:8px;white-space:nowrap;
+  animation:toastIn .22s ease}
+.toast .ic{width:14.5px;height:14.5px;color:var(--ok)}
+.toast.out{animation:toastOut .25s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(10px)}}
+</style>
+</head>
+<body>
+
+<!-- ======== 锁屏 ======== -->
+<div id="lockView" class="lockview">
+  <div class="orb orb-a"></div><div class="orb orb-b"></div>
+  <div class="lock-card" id="lockCard"></div>
+</div>
+
+<!-- ======== 主界面 ======== -->
+<div id="appView" class="appview hidden">
+  <aside class="sidebar">
+    <div class="brand">
+      <span id="brandLogo"></span>
+      <div class="brand-t"><b>密码保险库</b><span>OFFLINE VAULT</span></div>
+    </div>
+    <button class="nav-item active" id="navAll"><span class="n-ic"></span>全部条目 <span class="cnt" id="cntAll">0</span></button>
+    <button class="nav-item" id="navFav"><span class="n-ic"></span>收藏 <span class="cnt" id="cntFav">0</span></button>
+    <button class="nav-item" id="navTrash"><span class="n-ic"></span>回收站 <span class="cnt" id="cntTrash">0</span></button>
+    <div class="nav-label">分组</div>
+    <div id="navGroups"></div>
+    <div class="nav-label">标签</div>
+    <div id="navTags"></div>
+    <div class="sidebar-foot">
+      <button class="nav-item" id="btnSettings"><span class="n-ic"></span>设置</button>
+      <button class="nav-item" id="btnLockNow"><span class="n-ic"></span>立即锁定</button>
+    </div>
+  </aside>
+
+  <section class="list-pane">
+    <div class="list-head">
+      <div class="search">
+        <span id="searchIc"></span>
+        <input class="input" id="searchInput" placeholder="搜索名称 / 用户名 / 备注…　Ctrl+K">
+      </div>
+      <button class="btn" id="btnBatch"><span class="n-ic"></span>批量</button>
+      <button class="btn primary" id="btnNew"><span class="n-ic"></span>新建</button>
+    </div>
+    <div id="batchBar" class="batch-bar hidden"></div>
+    <div class="entry-list" id="entryList"></div>
+  </section>
+
+  <section class="detail-pane" id="detailPane"></section>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+'use strict';
+/* ================================================================
+ * 办公密码保险库 — Tauri 桌面版
+ * 加密：AES-256-GCM + PBKDF2-SHA256（600,000 次迭代），由 Web Crypto 完成
+ * 存储：数据文件由 Rust 端原子读写（默认 文档\密码保险库.vault，可自定义）
+ * 附加：窗口失焦自动锁定
+ * ================================================================ */
+
+const Tcore = window.__TAURI__ && window.__TAURI__.core;
+if (!Tcore) {
+  document.body.innerHTML = '<p style="color:#eef1f8;font-family:sans-serif;padding:48px;font-size:15px">请通过 OfficeVault 桌面应用运行。</p>';
+  throw new Error('not running inside tauri');
+}
+const invoke = Tcore.invoke;
+
+/* ---------- 图标 ---------- */
+const I = (p, extra='') => '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" '+extra+'>'+p+'</svg>';
+const ICONS = {
+  shield: I('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'),
+  search: I('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>'),
+  plus:   I('<path d="M12 5v14M5 12h14"/>'),
+  star:   I('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>'),
+  copy:   I('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
+  eye:    I('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+  eyeOff: I('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/>'),
+  edit:   I('<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>'),
+  trash:  I('<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>'),
+  gear:   I('<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/>'),
+  lock:   I('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+  x:      I('<path d="M18 6L6 18M6 6l12 12"/>'),
+  dice:   I('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.2" cy="8.2" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.8" cy="8.2" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/><circle cx="8.2" cy="15.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.8" cy="15.8" r="1.15" fill="currentColor" stroke="none"/>'),
+  link:   I('<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>'),
+  user:   I('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+  clock:  I('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  down:   I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>'),
+  up:     I('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>'),
+  file:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'),
+  folder: I('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
+  key:    I('<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3-3.5 3.5z"/>'),
+  tag:    I('<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><path d="M7 7h.01"/>'),
+  check:  I('<path d="M20 6L9 17l-5-5"/>'),
+  alert:  I('<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'),
+  refresh:I('<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
+  restore:I('<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>'),
+  note:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>')
+};
+const LOGO = (size)=>'<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg'+size+'" x1="0" y1="0" x2="24" y2="24"><stop offset="0" stop-color="#6d8dff"/><stop offset="1" stop-color="#9a7bff"/></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="url(#lg'+size+')" stroke-width="1.5" fill="rgba(109,141,255,.07)"/><circle cx="12" cy="10.3" r="2.3" stroke="url(#lg'+size+')" stroke-width="1.5"/><path d="M12 12.6v3.6" stroke="url(#lg'+size+')" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+/* ---------- 工具 ---------- */
+const $ = s => document.querySelector(s);
+const enc = new TextEncoder(), dec = new TextDecoder();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function b64e(u8){ let s=''; const CH=0x8000; for(let i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null, u8.subarray(i, i+CH)); return btoa(s); }
+function b64d(str){ const s=atob(str); const u8=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u8[i]=s.charCodeAt(i); return u8; }
+function rand(n){ const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]%n; }
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID() : Date.now()+'-'+rand(1e9)); }
+function fmtTime(iso){ if(!iso) return '—'; const d=new Date(iso); const p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+function fmtDate(iso){ return fmtTime(iso).slice(0,10); }
+function avStyle(title){ let h=0; const s=String(title||'?'); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))%360; return 'background:linear-gradient(135deg,hsl('+h+',58%,52%),hsl('+((h+45)%360)+',55%,40%))'; }
+function initial(title){ const t=String(title||'').trim(); if(!t) return '?'; return /[a-zA-Z]/.test(t[0]) ? t[0].toUpperCase() : t[0]; }
+function isHttpUrl(u){ return /^https?:\/\//i.test(u||''); }
+function baseName(p){ return String(p||'').split(/[\\/]/).pop(); }
+
+/* ---------- 密码强度 ---------- */
+function pwStrength(pw){
+  if(!pw) return {s:-1,label:'',cls:''};
+  let pool=0;
+  if(/[a-z]/.test(pw)) pool+=26;
+  if(/[A-Z]/.test(pw)) pool+=26;
+  if(/[0-9]/.test(pw)) pool+=10;
+  if(/[^a-zA-Z0-9]/.test(pw)) pool+=33;
+  let bits = pw.length * Math.log2(Math.max(pool,2));
+  if(/(.)\1{2,}/.test(pw)) bits*=0.8;
+  if(/(?:0123|1234|2345|3456|4567|5678|6789|abcd|qwer|asdf|zxcv|password|admin)/i.test(pw)) bits*=0.7;
+  let s = bits<32?0 : bits<50?1 : bits<75?2 : 3;
+  if(pw.length<8) s=0;
+  const L=['弱','一般','强','极强'], C=['err','warn','acc','ok'];
+  return {s, label:L[s], cls:C[s]};
+}
+function meterHTML(){ return '<div class="meter"><i></i><i></i><i></i><i></i><b></b></div>'; }
+function updateMeter(root, pw){
+  const m=root.querySelector('.meter'); if(!m) return;
+  const r=pwStrength(pw);
+  m.className='meter'+(r.s>=0?' s'+r.s:'');
+  m.querySelector('b').textContent = r.s>=0 ? ('强度：'+r.label) : '';
+}
+
+/* ---------- 密码生成器 ---------- */
+const SETS={upper:'ABCDEFGHIJKLMNOPQRSTUVWXYZ',lower:'abcdefghijklmnopqrstuvwxyz',digits:'0123456789',symbols:'!@#$%^&*()-_=+[]{};:,.<>?/~'};
+const AMBIG='Il1O0o';
+function genPassword(len,opts){
+  let all='';
+  if(opts.fmt==='hex'){ all='0123456789abcdef'; }
+  else if(opts.fmt==='b64'){ all='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'; }
+  else{
+    const pools=[];
+    for(const k of ['upper','lower','digits','symbols']) if(opts[k]){
+      const s=(opts.noAmb? SETS[k].split('').filter(c=>!AMBIG.includes(c)).join('') : SETS[k]);
+      if(s) pools.push(s);
+    }
+    if(!pools.length) return '';
+    all=pools.join('');
+    const chars=pools.map(p=>p[rand(p.length)]);
+    while(chars.length<len) chars.push(all[rand(all.length)]);
+    for(let i=chars.length-1;i>0;i--){ const j=rand(i+1); [chars[i],chars[j]]=[chars[j],chars[i]]; }
+    return chars.slice(0,len).join('');
+  }
+  const chars=[];
+  while(chars.length<len) chars.push(all[rand(all.length)]);
+  return chars.join('');
+}
+
+const TEMPLATES=[
+  {label:'服务器 SSH', defTitle:'服务器', username:'root', group:'服务器', fields:[{name:'主机地址',value:'',secret:false},{name:'端口',value:'22',secret:false}]},
+  {label:'银行卡', defTitle:'', username:'', group:'金融', fields:[{name:'卡号',value:'',secret:false},{name:'开户行',value:'',secret:false},{name:'预留手机号',value:'',secret:true}]},
+  {label:'Wi-Fi', defTitle:'Wi-Fi', username:'', group:'网络', fields:[{name:'SSID',value:'',secret:false},{name:'加密方式',value:'WPA2',secret:false}]},
+  {label:'软件许可', defTitle:'软件许可', username:'', group:'许可证', fields:[{name:'版本',value:'',secret:false},{name:'授权邮箱',value:'',secret:false},{name:'到期日期',value:'',secret:false}]}
+];
+
+/* ---------- 加密核心 ---------- */
+const ITERATIONS=600000;
+async function deriveKey(password, saltU8, iterations){
+  const km=await crypto.subtle.importKey('raw', enc.encode(password.normalize('NFKC')), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt:saltU8, iterations, hash:'SHA-256'}, km, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+
+/* ---------- 全局状态 ---------- */
+const state={
+  unlocked:false, key:null, vault:null, blob:null,
+  saltB64:null, iter:ITERATIONS,
+  filter:{view:'all', tag:null, q:''},
+  selectedId:null,
+  batchMode:false, selectedIds:new Set()
+};
+let lockTimer=null, clipTimer=null, genState=null;
+let vaultPath=null, vaultIsCustom=false, dialogBusy=0;
+
+/* ---------- 数据文件读写（走 Rust 端） ---------- */
+async function loadPathInfo(){
+  try{
+    const info=await invoke('get_vault_info');
+    vaultPath=info.path; vaultIsCustom=!!info.custom;
+  }catch(e){ vaultPath=null; vaultIsCustom=false; }
+}
+async function loadVaultFromDisk(){
+  state.blob=null;
+  try{
+    const raw=await invoke('read_vault');
+    if(raw){
+      const env=JSON.parse(raw);
+      if(env && env.salt && env.iv && env.ct && env.kdf) state.blob=env;
+    }
+  }catch(e){ state.blob=null; }
+}
+async function persist(){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:'AES-GCM', iv}, state.key, enc.encode(JSON.stringify(state.vault)));
+  const env={app:'OfficeVault', v:1, kdf:{algo:'PBKDF2-SHA256', iterations:state.iter},
+    salt:state.saltB64, iv:b64e(iv), ct:b64e(new Uint8Array(ct)), updated:new Date().toISOString()};
+  await invoke('write_vault', {content: JSON.stringify(env)});
+  state.blob=env;
+  syncTrayFavorites();
+}
+
+/* 解锁后同步托盘：收藏条目菜单 + 关闭最小化设置 */
+function syncTrayFavorites(){
+  try{
+    invoke('set_close_to_tray', {on: !!(state.vault && state.vault.settings.closeToTray)});
+    const items=(state.unlocked && state.vault)
+      ? state.vault.entries.filter(e=>e.favorite && !e.deletedAt && e.password).slice(0,12).map(e=>({id:e.id, title:e.title}))
+      : [];
+    invoke('tray_set_favorites', {items});
+  }catch(e){}
+}
+
+/* ---------- Toast ---------- */
+let toastEl=null, toastTimer=null;
+function toast(msg, ms=2400){
+  if(toastEl) toastEl.remove();
+  clearTimeout(toastTimer);
+  toastEl=document.createElement('div');
+  toastEl.className='toast';
+  toastEl.innerHTML=ICONS.check+'<span>'+esc(msg)+'</span>';
+  $('#toastRoot').appendChild(toastEl);
+  toastTimer=setTimeout(()=>{ toastEl.classList.add('out'); setTimeout(()=>{ toastEl&&toastEl.remove(); toastEl=null; },260); }, ms);
+}
+
+/* ---------- 弹窗系统 ---------- */
+let modalOnClose=null;
+function openModal(html, width){
+  closeModal();
+  const ov=document.createElement('div');
+  ov.className='overlay';
+  ov.innerHTML='<div class="modal"'+(width?' style="width:'+width+'"':'')+'>'+html+'</div>';
+  $('#modalRoot').appendChild(ov);
+  requestAnimationFrame(()=>ov.classList.add('show'));
+  ov.addEventListener('pointerdown', e=>{ if(e.target===ov) closeModal(); });
+  return ov;
+}
+function closeModal(){
+  if(modalOnClose){ const f=modalOnClose; modalOnClose=null; f(); }
+  $('#modalRoot').innerHTML='';
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && $('#modalRoot').children.length){ e.preventDefault(); closeModal(); }
+});
+function confirmDlg(title, text, okLabel, danger){
+  return new Promise(res=>{
+    let done=false;
+    const ov=openModal(
+      '<div class="m-head"><div class="m-title">'+esc(title)+'</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+      '<div class="m-body"><p style="padding:8px 0 12px;color:var(--tx1);line-height:1.7;font-size:13.5px">'+esc(text)+'</p></div>'+
+      '<div class="m-foot"><button class="btn" data-no>取消</button><button class="btn '+(danger?'danger':'primary')+'" data-ok>'+esc(okLabel||'确定')+'</button></div>');
+    const finish=v=>{ if(done) return; done=true; modalOnClose=null; res(v); closeModal(); };
+    ov.querySelector('[data-ok]').onclick=()=>finish(true);
+    ov.querySelector('[data-no]').onclick=()=>finish(false);
+    ov.querySelector('[data-x]').onclick=()=>finish(false);
+    modalOnClose=()=>finish(false);
+  });
+}
+
+/* ---------- 剪贴板 ---------- */
+async function copyText(text, label){
+  try{ await navigator.clipboard.writeText(text); }
+  catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=text; ta.style.cssText='position:fixed;top:-999px;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e2){}
+    ta.remove();
+  }
+  const sec=state.vault && state.vault.settings.clipClearSec;
+  toast(label+'已复制'+(sec?('，'+sec+' 秒后自动清空剪贴板'):''));
+  clearTimeout(clipTimer);
+  if(sec>0) clipTimer=setTimeout(()=>{ navigator.clipboard.writeText('').catch(()=>{}); }, sec*1000);
+}
+
+/* ---------- 自动锁定 ---------- */
+function resetLockTimer(){
+  clearTimeout(lockTimer);
+  if(!state.unlocked || !state.vault) return;
+  const m=state.vault.settings.autoLockMin;
+  if(m>0) lockTimer=setTimeout(lockNow, m*60000);
+}
+function lockNow(){
+  clearTimeout(lockTimer);
+  state.unlocked=false; state.key=null; state.vault=null;
+  state.selectedId=null; state.filter={view:'all',tag:null,q:''};
+  state.batchMode=false; state.selectedIds.clear();
+  $('#searchInput').value='';
+  /* 关键：锁定时必须关掉所有弹窗，否则残留的表单会在无数据状态下静默失败 */
+  closeModal();
+  if(toastEl){ toastEl.remove(); toastEl=null; }
+  clearTimeout(toastTimer);
+  try{ invoke('tray_set_favorites', {items: []}); }catch(e){}
+  renderLock();
+}
+['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev, ()=>{ if(state.unlocked) resetLockTimer(); }));
+/* 窗口失焦立即锁定（弹原生对话框期间豁免） */
+window.addEventListener('blur', ()=>{
+  setTimeout(()=>{
+    if(!state.unlocked || dialogBusy>0) return;
+    if(!(state.vault && state.vault.settings.lockOnBlur)) return;
+    if(!document.hasFocus()) lockNow();
+  }, 200);
+});
+
+/* ================================================================
+ * 锁屏
+ * ================================================================ */
+function renderLock(){
+  $('#lockView').classList.remove('hidden');
+  $('#appView').classList.add('hidden');
+  const card=$('#lockCard');
+  card.classList.remove('shake');
+  const hasBlob=!!state.blob;
+
+  if(!hasBlob){
+    /* --- 首次使用：创建保险库 --- */
+    card.innerHTML=
+      '<div class="lock-logo">'+LOGO(52)+'</div>'+
+      '<h1>创建你的保险库</h1>'+
+      '<p class="lock-sub">数据将加密保存到本地文件<br>（默认：文档\\密码保险库.vault，可随时更换）</p>'+
+      '<label class="flabel">主密码</label>'+
+      '<input class="input pw-input" id="pw1" type="password" placeholder="至少 8 位，建议混合大小写、数字、符号" autocomplete="new-password">'+
+      meterHTML()+
+      '<label class="flabel">确认主密码</label>'+
+      '<input class="input pw-input" id="pw2" type="password" placeholder="再输入一次" autocomplete="new-password">'+
+      '<div class="lock-warn">'+ICONS.alert+'<span><b>主密码没有任何找回手段</b>，忘记即数据永久丢失，请务必牢记。</span></div>'+
+      '<div style="height:16px"></div>'+
+      '<button class="btn primary big" id="btnCreate">创建保险库</button>'+
+      '<div class="lock-more"><button class="link" id="lnkImport">已有 .vault 文件？打开</button></div>'+
+      '<div class="lock-err" id="lockErr"></div>'+
+      '<div class="lock-foot">AES-256-GCM 加密 · PBKDF2 六十万次迭代 · 数据仅存本机</div>';
+    const p1=$('#pw1'), p2=$('#pw2');
+    p1.addEventListener('input', ()=>updateMeter(card, p1.value));
+    p1.addEventListener('keydown', e=>{ if(e.key==='Enter') p2.focus(); });
+    p2.addEventListener('keydown', e=>{ if(e.key==='Enter') doCreate(); });
+    $('#btnCreate').onclick=doCreate;
+    $('#lnkImport').onclick=()=>openVaultFile(false);
+    p1.focus();
+  }else{
+    /* --- 解锁 --- */
+    const loc=vaultPath?('　·　'+baseName(vaultPath)):'';
+    card.innerHTML=
+      '<div class="lock-logo">'+LOGO(52)+'</div>'+
+      '<h1>密码保险库</h1>'+
+      '<p class="lock-sub">输入主密码解锁'+(state.blob.updated?('　·　上次保存 '+fmtTime(state.blob.updated)):'')+esc(loc)+'</p>'+
+      '<input class="input pw-input" id="pw0" type="password" placeholder="主密码" autocomplete="current-password" style="margin-top:14px">'+
+      '<button class="btn primary big" id="btnUnlock" style="margin-top:16px">解锁</button>'+
+      '<div class="lock-err" id="lockErr"></div>'+
+      '<div class="lock-foot">AES-256-GCM 加密 · 数据 100% 离线</div>';
+    const p0=$('#pw0');
+    p0.addEventListener('keydown', e=>{ if(e.key==='Enter') doUnlock(); });
+    $('#btnUnlock').onclick=doUnlock;
+    p0.focus();
+  }
+}
+async function doCreate(){
+  const p1=$('#pw1').value, p2=$('#pw2').value, err=$('#lockErr'), card=$('#lockCard');
+  err.textContent='';
+  if(p1.length<8){ err.textContent='主密码至少需要 8 位'; card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); return; }
+  if(p1!==p2){ err.textContent='两次输入的密码不一致'; card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); return; }
+  const btn=$('#btnCreate'); btn.disabled=true; btn.textContent='正在加密创建…';
+  try{
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    state.saltB64=b64e(salt); state.iter=ITERATIONS;
+    state.key=await deriveKey(p1, salt, state.iter);
+    state.vault={ v:1, entries:[], settings:{autoLockMin:5, clipClearSec:30, lockOnBlur:true, closeToTray:true}, meta:{createdAt:new Date().toISOString()} };
+    await persist();
+    enterApp(true);
+  }catch(e){
+    err.textContent='创建失败：'+e.message;
+    btn.disabled=false; btn.textContent='创建保险库';
+  }
+}
+async function doUnlock(){
+  const pw=$('#pw0').value, err=$('#lockErr'), card=$('#lockCard'), btn=$('#btnUnlock');
+  if(!pw){ err.textContent='请输入主密码'; return; }
+  err.textContent=''; btn.disabled=true; btn.textContent='解锁中…';
+  try{
+    const env=state.blob;
+    const salt=b64d(env.salt);
+    const key=await deriveKey(pw, salt, env.kdf.iterations);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(env.iv)}, key, b64d(env.ct));
+    state.vault=JSON.parse(dec.decode(plain));
+    if(!state.vault.settings || typeof state.vault.settings!=='object') state.vault.settings={};
+    const s=state.vault.settings;
+    if(typeof s.autoLockMin!=='number') s.autoLockMin=5;
+    if(typeof s.clipClearSec!=='number') s.clipClearSec=30;
+    if(typeof s.lockOnBlur!=='boolean') s.lockOnBlur=true;
+    if(typeof s.closeToTray!=='boolean') s.closeToTray=true;
+    state.key=key; state.saltB64=env.salt; state.iter=env.kdf.iterations;
+    enterApp(false);
+  }catch(e){
+    err.textContent='主密码错误';
+    card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    btn.disabled=false; btn.textContent='解锁';
+    $('#pw0').select();
+  }
+}
+function enterApp(isNew){
+  state.unlocked=true;
+  $('#lockView').classList.add('hidden');
+  $('#appView').classList.remove('hidden');
+  $('#brandLogo').innerHTML=LOGO(30);
+  $('#searchIc').innerHTML=ICONS.search;
+  $('#navAll').querySelector('.n-ic').innerHTML=ICONS.folder;
+  $('#navFav').querySelector('.n-ic').innerHTML=ICONS.star;
+  $('#btnSettings').querySelector('.n-ic').innerHTML=ICONS.gear;
+  $('#btnLockNow').querySelector('.n-ic').innerHTML=ICONS.lock;
+  $('#btnNew').querySelector('.n-ic').innerHTML=ICONS.plus;
+  $('#btnBatch').querySelector('.n-ic').innerHTML=ICONS.check;
+  $('#navTrash').querySelector('.n-ic').innerHTML=ICONS.trash;
+  /* 自动清理回收站：删除超过 30 天的条目彻底移除 */
+  let purged=0;
+  {
+    const cutoff=Date.now()-30*86400000;
+    const before=state.vault.entries.length;
+    state.vault.entries=state.vault.entries.filter(e=>!(e.deletedAt && new Date(e.deletedAt).getTime()<cutoff));
+    purged=before-state.vault.entries.length;
+  }
+  if(purged){ persist().catch(()=>{}); }
+  renderAll();
+  resetLockTimer();
+  syncTrayFavorites();
+  if(isNew) toast('保险库已创建，数据文件：'+(vaultPath||'')+'（可在「设置」中更换位置）', 6500);
+  else if(purged) toast('已自动清理回收站中 '+purged+' 条超过 30 天的条目', 4000);
+}
+
+/* ================================================================
+ * 主界面渲染
+ * ================================================================ */
+function allTags(){
+  const map=new Map();
+  for(const e of state.vault.entries) for(const t of (e.tags||[])) map.set(t,(map.get(t)||0)+1);
+  return [...map.entries()].sort((a,b)=>b[1]-a[1]);
+}
+function visibleEntries(){
+  const f=state.filter;
+  let arr=state.vault.entries.slice();
+  if(f.view==='trash') arr=arr.filter(e=>e.deletedAt);
+  else arr=arr.filter(e=>!e.deletedAt);
+  if(f.view==='fav') arr=arr.filter(e=>e.favorite);
+  if(f.view==='group' && f.tag) arr=arr.filter(e=>(e.group||'')===(f.tag));
+  if(f.view==='tag' && f.tag) arr=arr.filter(e=>(e.tags||[]).includes(f.tag));
+  if(f.q){
+    const q=f.q.toLowerCase();
+    arr=arr.filter(e=>[e.title,e.username,e.url,e.notes,(e.tags||[]).join(' ')].join(' ').toLowerCase().includes(q));
+  }
+  arr.sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0) || (b.updatedAt>a.updatedAt?1:-1));
+  return arr;
+}
+function renderAll(){ renderSidebar(); renderBatchBar(); renderList(); renderDetail(); }
+
+function renderSidebar(){
+  const active=state.vault.entries.filter(e=>!e.deletedAt);
+  $('#cntAll').textContent=active.length;
+  $('#cntFav').textContent=active.filter(e=>e.favorite).length;
+  $('#cntTrash').textContent=state.vault.entries.length-active.length;
+  const f=state.filter;
+  $('#navAll').classList.toggle('active', f.view==='all');
+  $('#navFav').classList.toggle('active', f.view==='fav');
+  $('#navTrash').classList.toggle('active', f.view==='trash');
+  const gmap=new Map();
+  active.forEach(e=>{ if(e.group) gmap.set(e.group,(gmap.get(e.group)||0)+1); });
+  const groups=[...gmap.entries()].sort((a,b)=>a[0].localeCompare(b[0],'zh'));
+  $('#navGroups').innerHTML = groups.length
+    ? groups.map(([g,c])=>'<button class="tag-item'+(f.view==='group'&&f.tag===g?' active':'')+'" data-grp="'+esc(g)+'">'+ICONS.folder+'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(g)+'</span><span class="cnt">'+c+'</span></button>').join('')
+    : '<div style="font-size:12px;color:var(--tx2);padding:2px 12px">暂无分组</div>';
+  $('#navGroups').querySelectorAll('[data-grp]').forEach(b=>{
+    b.onclick=()=>{ state.filter={view:'group',tag:b.dataset.grp,q:''}; $('#searchInput').value=''; renderAll(); };
+  });
+  const tmap=new Map();
+  active.forEach(e=>(e.tags||[]).forEach(t=>tmap.set(t,(tmap.get(t)||0)+1)));
+  const tags=[...tmap.entries()].sort((a,b)=>b[1]-a[1]);
+  $('#navTags').innerHTML = tags.length
+    ? tags.map(([t,c])=>'<button class="tag-item'+(f.view==='tag'&&f.tag===t?' active':'')+'" data-tag="'+esc(t)+'">'+ICONS.tag+'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t)+'</span><span class="cnt">'+c+'</span></button>').join('')
+    : '<div style="font-size:12px;color:var(--tx2);padding:2px 12px">暂无标签</div>';
+  $('#navTags').querySelectorAll('[data-tag]').forEach(b=>{
+    b.onclick=()=>{ state.filter={view:'tag',tag:b.dataset.tag,q:''}; $('#searchInput').value=''; renderAll(); };
+  });
+}
+function renderList(){
+  const arr=visibleEntries();
+  const list=$('#entryList');
+  if(!arr.length){
+    const none=state.vault.entries.length===0;
+    list.innerHTML='<div class="empty" style="padding-top:80px">'+ICONS.shield+
+      '<p>'+(none?'保险库还是空的<br>点击右上角「新建」添加第一条密码':'没有匹配的条目')+'</p>'+
+      (none&&!state.batchMode?'<button class="btn primary" id="emptyNew" style="margin-top:6px">'+ICONS.plus+'新建条目</button>':'')+'</div>';
+    const b=$('#emptyNew'); if(b) b.onclick=()=>openEntryModal(null);
+    return;
+  }
+  const trashView=state.filter.view==='trash';
+  list.innerHTML=arr.map(e=>{
+    const sel=!state.batchMode && e.id===state.selectedId;
+    const chk=state.batchMode
+      ?'<label class="rowchk"><input type="checkbox" data-sel="'+e.id+'"'+(state.selectedIds.has(e.id)?' checked':'')+'></label>'
+      :'';
+    const acts=state.batchMode?'':(
+      trashView
+      ?'<div class="e-acts"><button class="ibtn" data-act-restore title="恢复">'+ICONS.restore+'</button></div>'
+      :'<div class="e-acts">'+
+        (e.username?'<button class="ibtn" data-copyfield="username" title="复制用户名">'+ICONS.user+'</button>':'')+
+        (e.password?'<button class="ibtn" data-copyfield="password" title="复制密码">'+ICONS.key+'</button>':'')+
+      '</div>');
+    return '<div class="entry-row'+(sel?' sel':'')+(e.deletedAt?' deleted':'')+'" data-row="'+e.id+'">'+
+      chk+
+      '<div class="avatar" style="'+avStyle(e.title)+'">'+esc(initial(e.title))+'</div>'+
+      '<div class="e-main">'+
+        '<div class="e-title">'+esc(e.title)+(e.favorite?'<span class="fav-mark">'+ICONS.star+'</span>':'')+'</div>'+
+        '<div class="e-sub">'+esc(e.username||e.url||'—')+'</div>'+
+      '</div>'+
+      acts+
+    '</div>';
+  }).join('');
+}
+function renderDetail(){
+  const pane=$('#detailPane');
+  const e=state.vault.entries.find(x=>x.id===state.selectedId);
+  if(!e){
+    pane.innerHTML='<div class="empty">'+LOGO(64).replace('width="64"','width="64" style="opacity:.5"')+
+      '<p>'+(state.batchMode?'批量模式：在中间列表勾选条目<br>然后点击「删除所选」':'从中间选择一个条目查看详情<br>或新建一条密码')+'</p></div>';
+    return;
+  }
+  const pwField=e.password?
+    '<div class="frow"><div class="flabel2">密码 / 密钥</div>'+
+    '<div class="fval"><span id="pwShown" data-hidden="1" class="pw-mask">••••••••••</span></div>'+
+    '<button class="ibtn" data-act="togglePw" title="显示 / 隐藏">'+ICONS.eye+'</button>'+
+    '<button class="ibtn" data-act="copy" data-field="password" title="复制">'+ICONS.copy+'</button></div>':'';
+  const fieldsHtml=(e.fields||[]).map((f,i)=>{
+    const valHtml=f.secret?'<span class="pw-mask" data-fval="'+i+'">••••••••••</span>':esc(f.value);
+    return '<div class="frow"><div class="flabel2">'+esc(f.name||'字段')+'</div>'+
+      '<div class="fval">'+valHtml+'</div>'+
+      (f.secret?'<button class="ibtn" data-ftoggle="'+i+'" title="显示 / 隐藏">'+ICONS.eye+'</button>':'')+
+      '<button class="ibtn" data-fcopy="'+i+'" title="复制">'+ICONS.copy+'</button></div>';
+  }).join('');
+  const userField=e.username?
+    '<div class="frow"><div class="flabel2">用户名</div><div class="fval">'+esc(e.username)+'</div>'+
+    '<button class="ibtn" data-act="copy" data-field="username" title="复制用户名">'+ICONS.copy+'</button></div>':'';
+  const urlField=e.url?
+    '<div class="frow"><div class="flabel2">网址 / 系统</div><div class="fval">'+
+    (isHttpUrl(e.url)?('<a href="'+esc(e.url)+'" target="_blank" rel="noopener noreferrer">'+esc(e.url)+'</a>'):esc(e.url))+
+    '</div><button class="ibtn" data-act="copy" data-field="url" title="复制网址">'+ICONS.copy+'</button></div>':'';
+  const grpHtml=e.group?'<span class="chip grp">'+ICONS.folder+' '+esc(e.group)+'</span>':'';
+  const tagsHtml=((e.tags&&e.tags.length)||e.group)?'<div class="d-tags">'+grpHtml+(e.tags||[]).map(t=>'<span class="chip">'+esc(t)+'</span>').join('')+'</div>':'';
+  const inTrash=!!e.deletedAt;
+  const histDisp=(e.history||[]).slice().reverse();
+  const histHtml=histDisp.length?'<div style="margin-top:18px"><div class="flabel2" style="margin-bottom:9px">'+ICONS.clock+' 密码历史（'+histDisp.length+'，仅保留最近 10 条）</div>'+
+    histDisp.map((h,i)=>'<div class="frow"><div class="flabel2">'+fmtDate(h.changedAt)+'</div>'+
+      '<div class="fval"><span class="pw-mask" data-hval="'+i+'">••••••••••</span></div>'+
+      '<button class="ibtn" data-htoggle="'+i+'" title="显示 / 隐藏">'+ICONS.eye+'</button>'+
+      '<button class="ibtn" data-hcopy="'+i+'" title="复制">'+ICONS.copy+'</button></div>').join('')+'</div>':'';
+  const banner=inTrash?'<div class="d-banner">'+ICONS.alert+'<span>该条目在回收站中（'+fmtTime(e.deletedAt)+' 删除），30 天后自动彻底清除。恢复后可正常编辑和复制。</span></div>':'';
+  const actions=inTrash
+    ?'<button class="btn primary" id="dRestore">'+ICONS.restore+'恢复</button>'+
+     '<button class="btn danger" id="dDel">'+ICONS.trash+'彻底删除</button>'
+    :'<button class="ibtn fav'+(e.favorite?' on':'')+'" id="dFav" title="收藏">'+ICONS.star+'</button>'+
+     '<button class="btn" id="dEdit">'+ICONS.edit+'编辑</button>'+
+     '<button class="btn danger-ghost" id="dDel">'+ICONS.trash+'删除</button>';
+  pane.innerHTML=
+    banner+
+    '<div class="d-head">'+
+      '<div class="avatar big" style="'+avStyle(e.title)+'">'+esc(initial(e.title))+'</div>'+
+      '<div class="d-tt"><h2>'+esc(e.title)+'</h2>'+tagsHtml+'</div>'+
+      '<div class="d-actions">'+actions+'</div>'+
+    '</div>'+
+    '<div class="d-body">'+
+      userField + pwField + urlField + fieldsHtml +
+      (e.notes?'<div style="margin-top:18px"><div class="flabel2" style="margin-bottom:9px">'+ICONS.note+' 备注</div><div class="notes-box">'+esc(e.notes)+'</div></div>':'')+
+      histHtml+
+      '<div class="meta-line">'+
+        '<span>'+ICONS.clock+'创建于 '+fmtTime(e.createdAt)+'</span>'+
+        '<span>'+ICONS.refresh+'更新于 '+fmtTime(e.updatedAt)+'</span>'+
+      '</div>'+
+    '</div>';
+  const done=()=>{ state.selectedId=null; renderAll(); };
+  if(inTrash){
+    pane.querySelector('#dRestore').onclick=async()=>{ delete e.deletedAt; e.updatedAt=new Date().toISOString(); await persist(); renderAll(); toast('已恢复「'+e.title+'」'); };
+    pane.querySelector('#dDel').onclick=async()=>{
+      if(await confirmDlg('彻底删除','将「'+e.title+'」彻底删除？此操作不可恢复。','彻底删除',true)){
+        state.vault.entries=state.vault.entries.filter(x=>x.id!==e.id);
+        done(); await persist(); toast('已彻底删除「'+e.title+'」');
+      }
+    };
+  }else{
+    pane.querySelector('#dFav').onclick=async()=>{ e.favorite=!e.favorite; e.updatedAt=new Date().toISOString(); await persist(); renderAll(); };
+    pane.querySelector('#dEdit').onclick=()=>openEntryModal(e);
+    pane.querySelector('#dDel').onclick=async()=>{
+      if(await confirmDlg('删除条目','将「'+e.title+'」移入回收站吗？30 天后自动彻底删除。','移入回收站',false)){
+        e.deletedAt=new Date().toISOString();
+        done(); await persist(); toast('已移入回收站「'+e.title+'」');
+      }
+    };
+  }
+  const pwShown=pane.querySelector('#pwShown');
+  pane.querySelector('[data-act="togglePw"]').onclick=function(){
+    const hidden=pwShown.dataset.hidden==='1';
+    pwShown.dataset.hidden=hidden?'0':'1';
+    pwShown.className=hidden?'mono':'pw-mask mono';
+    pwShown.textContent=hidden?e.password:'••••••••••';
+    this.innerHTML=hidden?ICONS.eyeOff:ICONS.eye;
+  };
+  pane.querySelectorAll('[data-act="copy"]').forEach(b=>{
+    b.onclick=()=>{ const v=e[b.dataset.field]||''; if(v) copyText(v, ({password:'密码',username:'用户名',url:'网址'})[b.dataset.field]||'内容'); };
+  });
+  pane.querySelectorAll('[data-ftoggle]').forEach(b=>{
+    b.onclick=()=>{
+      const i=+b.dataset.ftoggle, sp=pane.querySelector('[data-fval="'+i+'"]');
+      const hidden=sp.classList.contains('pw-mask');
+      sp.classList.toggle('pw-mask', !hidden); sp.classList.toggle('mono', hidden);
+      sp.textContent=hidden?e.fields[i].value:'••••••••••';
+      b.innerHTML=hidden?ICONS.eyeOff:ICONS.eye;
+    };
+  });
+  pane.querySelectorAll('[data-fcopy]').forEach(b=>{
+    b.onclick=()=>{ const f=e.fields[+b.dataset.fcopy]; if(f && f.value) copyText(f.value, f.name||'字段'); };
+  });
+  pane.querySelectorAll('[data-htoggle]').forEach(b=>{
+    b.onclick=()=>{
+      const i=+b.dataset.htoggle, sp=pane.querySelector('[data-hval="'+i+'"]');
+      const hidden=sp.classList.contains('pw-mask');
+      sp.classList.toggle('pw-mask', !hidden); sp.classList.toggle('mono', hidden);
+      sp.textContent=hidden?histDisp[i].password:'••••••••••';
+      b.innerHTML=hidden?ICONS.eyeOff:ICONS.eye;
+    };
+  });
+  pane.querySelectorAll('[data-hcopy]').forEach(b=>{
+    b.onclick=()=>{ const h=histDisp[+b.dataset.hcopy]; if(h && h.password) copyText(h.password, '历史密码'); };
+  });
+}
+
+/* ---------- 列表与侧栏事件 ---------- */
+$('#navAll').onclick=()=>{ state.filter.view='all'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
+$('#navFav').onclick=()=>{ state.filter.view='fav'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
+$('#navTrash').onclick=()=>{ state.filter={view:'trash',tag:null,q:''}; $('#searchInput').value=''; state.selectedId=null; renderAll(); };
+
+/* ---------- 批量管理 ---------- */
+$('#btnBatch').onclick=()=>{
+  state.batchMode=!state.batchMode;
+  state.selectedIds.clear();
+  state.selectedId=null;
+  renderAll();
+  if(state.batchMode) toast('批量模式：勾选条目后点「删除所选」，可配合搜索/标签筛选', 3600);
+};
+function renderBatchBar(){
+  const bar=$('#batchBar');
+  if(!bar) return;
+  if(!state.batchMode){ bar.classList.add('hidden'); bar.innerHTML=''; return; }
+  bar.classList.remove('hidden');
+  const trashView=state.filter.view==='trash';
+  bar.innerHTML='<span>已选 <b>'+state.selectedIds.size+'</b> / '+state.vault.entries.length+' 条'+(trashView?'（回收站）':'')+'</span>'+
+    '<button class="btn small" id="bSelAll">全选当前</button>'+
+    (trashView?'<button class="btn small" id="bRestoreSel">'+ICONS.restore+'恢复所选</button><button class="btn small danger" id="bDelSel">'+ICONS.trash+'彻底删除</button>'
+              :'<button class="btn small danger" id="bDelSel">'+ICONS.trash+'删除所选</button>')+
+    '<button class="btn small" id="bExitSel">完成</button>'+
+    '<span style="margin-left:auto;color:var(--tx2);font-size:11.5px">“全选当前”只选中筛选结果</span>';
+  $('#bSelAll').onclick=()=>{ visibleEntries().forEach(x=>state.selectedIds.add(x.id)); renderBatchBar(); renderList(); };
+  $('#bDelSel').onclick=batchDelete;
+  $('#bExitSel').onclick=()=>{ state.batchMode=false; state.selectedIds.clear(); renderAll(); };
+  const rs=$('#bRestoreSel');
+  if(rs) rs.onclick=batchRestore;
+}
+async function batchDelete(){
+  const n=state.selectedIds.size;
+  if(!n){ toast('请先勾选要操作的条目'); return; }
+  if(state.filter.view==='trash'){
+    if(!(await confirmDlg('彻底删除','确定将选中的 '+n+' 条条目彻底删除吗？此操作不可恢复。','彻底删除',true))) return;
+    state.vault.entries=state.vault.entries.filter(x=>!state.selectedIds.has(x.id));
+    state.selectedIds.clear(); state.batchMode=false; state.selectedId=null;
+    await persist(); renderAll();
+    toast('已彻底删除 '+n+' 条条目');
+  }else{
+    if(!(await confirmDlg('移入回收站','将选中的 '+n+' 条条目移入回收站吗？30 天后自动彻底删除。','移入回收站',false))) return;
+    const now=new Date().toISOString();
+    state.vault.entries.forEach(x=>{ if(state.selectedIds.has(x.id)) x.deletedAt=now; });
+    state.selectedIds.clear(); state.batchMode=false; state.selectedId=null;
+    await persist(); renderAll();
+    toast('已移入回收站 '+n+' 条条目');
+  }
+}
+async function batchRestore(){
+  const n=state.selectedIds.size;
+  if(!n){ toast('请先勾选要恢复的条目'); return; }
+  const now=new Date().toISOString();
+  state.vault.entries.forEach(x=>{ if(state.selectedIds.has(x.id)) delete x.deletedAt; });
+  state.selectedIds.clear(); state.batchMode=false; state.selectedId=null;
+  await persist(); renderAll();
+  toast('已恢复 '+n+' 条条目');
+}
+$('#searchInput').addEventListener('input', function(){ state.filter.q=this.value; renderList(); });
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k' && state.unlocked){ e.preventDefault(); $('#searchInput').focus(); $('#searchInput').select(); }
+});
+$('#entryList').addEventListener('click', e=>{
+  const row=e.target.closest('[data-row]');
+  if(!row) return;
+  const entry=state.vault.entries.find(x=>x.id===row.dataset.row);
+  if(!entry) return;
+  if(state.filter.view==='trash' && e.target.closest('[data-act-restore]')){
+    delete entry.deletedAt;
+    entry.updatedAt=new Date().toISOString();
+    persist().then(renderAll);
+    toast('已恢复「'+entry.title+'」');
+    return;
+  }
+  if(state.batchMode){
+    if(state.selectedIds.has(entry.id)) state.selectedIds.delete(entry.id);
+    else state.selectedIds.add(entry.id);
+    renderBatchBar(); renderList();
+    return;
+  }
+  const copyBtn=e.target.closest('[data-copyfield]');
+  if(copyBtn){
+    copyText(entry[copyBtn.dataset.copyfield]||'', ({password:'密码',username:'用户名'})[copyBtn.dataset.copyfield]||'内容');
+    return;
+  }
+  state.selectedId=entry.id;
+  renderList(); renderDetail();
+});
+$('#btnNew').onclick=()=>openEntryModal(null);
+$('#btnLockNow').onclick=lockNow;
+$('#btnSettings').onclick=openSettings;
+
+/* ================================================================
+ * 新建 / 编辑条目
+ * ================================================================ */
+function openEntryModal(entry){
+  const isNew=!entry;
+  const e=entry? JSON.parse(JSON.stringify(entry)) : {title:'',username:'',url:'',password:'',notes:'',tags:[],favorite:false};
+  genState={len:16, fmt:'mix', upper:true, lower:true, digits:true, symbols:true, noAmb:true, out:''};
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">'+(isNew?'新建条目':'编辑条目')+'</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      (isNew?'<label class="flabel" style="margin-top:2px">从模板开始（可选）</label><div class="tpl-row">'+TEMPLATES.map((t,i)=>'<button class="chk" type="button" data-tpl="'+i+'">'+t.label+'</button>').join('')+'</div>':'')+
+      '<label class="flabel">名称 <span style="color:var(--err)">*</span></label>'+
+      '<input class="input" id="fTitle" placeholder="如：公司 OA 系统" value="'+esc(e.title)+'">'+
+      '<label class="flabel">用户名</label>'+
+      '<input class="input" id="fUser" placeholder="登录账号 / 工号 / 邮箱" value="'+esc(e.username)+'">'+
+      '<label class="flabel">密码 / 密钥</label>'+
+      '<div class="input-row">'+
+        '<input class="input" id="fPass" type="password" placeholder="密码、API Key、访问令牌…" value="'+esc(e.password)+'">'+
+        '<button class="ibtn" data-eye="fPass" title="显示 / 隐藏">'+ICONS.eye+'</button>'+
+        '<button class="ibtn" id="btnGenToggle" title="生成密码">'+ICONS.dice+'</button>'+
+      '</div>'+
+      meterHTML()+
+      '<div id="genBox" class="gen-box hidden">'+
+        '<div class="gen-out"><code id="genOut">—</code>'+
+          '<button class="ibtn" id="btnGenRegen" title="重新生成">'+ICONS.refresh+'</button>'+
+          '<button class="btn primary small" id="btnGenUse">使用</button>'+
+        '</div>'+
+        '<div class="range-row"><span>长度</span><input type="range" id="genLen" min="8" max="64" value="16"><b id="genLenVal">16</b></div>'+
+        '<div class="range-row"><span>格式</span><select class="input" id="genFmt" style="flex:1"><option value="mix">混合字符集（登录密码）</option><option value="hex">十六进制（0-9 a-f）</option><option value="b64">Base64URL（签名密钥）</option></select></div>'+
+        '<div class="chk-row">'+
+          '<label class="chk"><input type="checkbox" id="gUpper" checked>大写字母</label>'+
+          '<label class="chk"><input type="checkbox" id="gLower" checked>小写字母</label>'+
+          '<label class="chk"><input type="checkbox" id="gDigits" checked>数字</label>'+
+          '<label class="chk"><input type="checkbox" id="gSymbols" checked>特殊符号</label>'+
+          '<label class="chk"><input type="checkbox" id="gNoAmb" checked>排除易混淆</label>'+
+        '</div>'+
+      '</div>'+
+      '<label class="flabel">网址 / 系统地址</label>'+
+      '<input class="input" id="fUrl" placeholder="如 https://oa.company.com（可留空）" value="'+esc(e.url)+'">'+
+      '<label class="flabel">分组</label>'+
+      '<input class="input" id="fGroup" list="groupList" placeholder="如：工作 / 个人 / 项目A（可留空）" value="'+esc(e.group||'')+'">'+
+      '<datalist id="groupList">'+[...new Set(state.vault.entries.filter(x=>!x.deletedAt&&x.group).map(x=>x.group))].map(g=>'<option value="'+esc(g)+'">').join('')+'</datalist>'+
+      '<label class="flabel">标签</label>'+
+      '<input class="input" id="fTags" placeholder="用空格或逗号分隔，如：办公 邮箱" value="'+esc((e.tags||[]).join(' '))+'">'+
+      '<label class="flabel">备注</label>'+
+      '<textarea class="input" id="fNotes" placeholder="安全提示问题、绑定手机、申请人等信息">'+esc(e.notes)+'</textarea>'+
+      '<label class="flabel">自定义字段 <span style="font-weight:400;color:var(--tx2)">（存放 Region、Secret ID、Endpoint 等附加信息）</span></label>'+
+      '<div id="fieldsBox"></div>'+
+      '<button class="btn small" id="btnAddField" type="button">'+ICONS.plus+'添加字段</button>'+
+      '<label class="chk" style="margin:16px 0 8px"><input type="checkbox" id="fFav"'+(e.favorite?' checked':'')+'>收藏此条目</label>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="btnSave">保存</button></div>',
+    520);
+
+  const root=ov.querySelector('.modal');
+  ov.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+  ov.querySelectorAll('[data-eye]').forEach(b=>{
+    b.onclick=()=>{ const inp=root.querySelector('#'+b.dataset.eye);
+      const show=inp.type==='password'; inp.type=show?'text':'password';
+      b.innerHTML=show?ICONS.eyeOff:ICONS.eye; if(show) inp.focus(); };
+  });
+  const fPass=root.querySelector('#fPass');
+  fPass.addEventListener('input', ()=>updateMeter(root, fPass.value));
+  updateMeter(root, e.password);
+  root.querySelector('#fTitle').focus();
+
+  /* 生成器 */
+  const genBox=root.querySelector('#genBox'), genOut=root.querySelector('#genOut');
+  function readGenOpts(){
+    genState.len=+root.querySelector('#genLen').value;
+    genState.fmt=root.querySelector('#genFmt').value;
+    genState.upper=root.querySelector('#gUpper').checked;
+    genState.lower=root.querySelector('#gLower').checked;
+    genState.digits=root.querySelector('#gDigits').checked;
+    genState.symbols=root.querySelector('#gSymbols').checked;
+    genState.noAmb=root.querySelector('#gNoAmb').checked;
+  }
+  function regen(){ readGenOpts(); genState.out=genPassword(genState.len, genState)||'（请至少勾选一种字符）'; genOut.textContent=genState.out; }
+  root.querySelector('#btnGenToggle').onclick=()=>{
+    genBox.classList.toggle('hidden');
+    if(!genBox.classList.contains('hidden')){ regen(); }
+  };
+  root.querySelector('#btnGenRegen').onclick=regen;
+  root.querySelector('#genLen').oninput=function(){ root.querySelector('#genLenVal').textContent=this.value; regen(); };
+  root.querySelectorAll('.chk-row input').forEach(c=>c.onchange=regen);
+  root.querySelector('#genFmt').onchange=regen;
+  root.querySelector('#btnGenUse').onclick=()=>{
+    if(genState.out && !genState.out.startsWith('（')){
+      fPass.value=genState.out; fPass.type='text';
+      updateMeter(root, fPass.value);
+      genBox.classList.add('hidden');
+      toast('已填入生成的密码');
+    }
+  };
+
+  /* 自定义字段 */
+  const fieldsBox=root.querySelector('#fieldsBox');
+  function addFieldRow(f){
+    f=f||{name:'',value:'',secret:true};
+    const row=document.createElement('div');
+    row.className='cf-row';
+    row.innerHTML='<input class="input cf-name" placeholder="字段名，如 Region" value="'+esc(f.name)+'">'+
+      '<input class="input cf-val" type="'+(f.secret?'password':'text')+'" placeholder="值" value="'+esc(f.value)+'">'+
+      '<label class="chk" title="敏感值在详情中默认隐藏"><input type="checkbox" class="cf-sec"'+(f.secret?' checked':'')+'>敏感</label>'+
+      '<button class="ibtn cf-del" title="删除字段">'+ICONS.trash+'</button>';
+    row.querySelector('.cf-sec').onchange=function(){ row.querySelector('.cf-val').type=this.checked?'password':'text'; };
+    row.querySelector('.cf-del').onclick=()=>row.remove();
+    fieldsBox.appendChild(row);
+  }
+  (e.fields||[]).forEach(addFieldRow);
+  root.querySelector('#btnAddField').onclick=()=>addFieldRow();
+  if(isNew){
+    root.querySelectorAll('[data-tpl]').forEach(c=>c.onclick=()=>{
+      const t=TEMPLATES[+c.dataset.tpl];
+      const title=root.querySelector('#fTitle');
+      if(t.defTitle && !title.value.trim()) title.value=t.defTitle;
+      root.querySelector('#fUser').value=t.username||'';
+      root.querySelector('#fGroup').value=t.group||'';
+      fieldsBox.innerHTML='';
+      t.fields.forEach(f=>addFieldRow({name:f.name, value:f.value, secret:!!f.secret}));
+      toast('已应用「'+t.label+'」模板，补全空着的信息即可');
+    });
+  }
+
+  root.querySelector('#btnSave').onclick=async()=>{
+    /* 会话可能已被失焦锁定/超时锁定：此时绝不能在空数据上静默操作 */
+    if(!state.unlocked || !state.vault){ toast('会话已锁定，请重新解锁后再操作', 3200); return; }
+    const btn=root.querySelector('#btnSave');
+    const title=root.querySelector('#fTitle').value.trim();
+    const password=fPass.value;
+    if(!title){ toast('请填写名称'); root.querySelector('#fTitle').focus(); return; }
+    btn.disabled=true; btn.textContent='保存中…';
+    try{
+      const tags=[...new Set(root.querySelector('#fTags').value.split(/[,，、\s]+/).map(t=>t.trim()).filter(Boolean))].slice(0,8);
+      const fields=[...root.querySelectorAll('.cf-row')].map(r=>({
+        name:r.querySelector('.cf-name').value.trim(),
+        value:r.querySelector('.cf-val').value,
+        secret:r.querySelector('.cf-sec').checked
+      })).filter(f=>f.name||f.value);
+      const now=new Date().toISOString();
+      const group=root.querySelector('#fGroup').value.trim();
+      let history=e.history||[];
+      if(!isNew && (e.password||'')!==password && password!==''){
+        history=[...(e.history||[]), {password:e.password||'', changedAt:e.updatedAt||now}].slice(-10);
+      }
+      const obj={
+        id: e.id||uid(), title, username:root.querySelector('#fUser').value.trim(),
+        password, url:root.querySelector('#fUrl').value.trim(),
+        group, notes:root.querySelector('#fNotes').value, tags, fields, history,
+        favorite:root.querySelector('#fFav').checked,
+        createdAt: e.createdAt||now, updatedAt:now
+      };
+      if(isNew){
+        state.vault.entries.push(obj);
+        state.selectedId=obj.id;
+      }else{
+        const i=state.vault.entries.findIndex(x=>x.id===e.id);
+        state.vault.entries[i]=obj;
+      }
+      await persist();
+      btn.disabled=false; btn.textContent='保存';
+      closeModal(); renderAll();
+      toast(isNew?'已添加「'+title+'」':'已保存修改');
+    }catch(err){
+      btn.disabled=false; btn.textContent='保存';
+      toast('保存失败：'+err.message+'（若数据文件在网络盘/被杀软占用，请检查设置中的文件位置）', 5200);
+    }
+  };
+}
+
+/* ================================================================
+ * 设置
+ * ================================================================ */
+function fileLocationText(){
+  if(!vaultPath) return '<span style="color:var(--warn)">尚未确定数据文件位置</span>';
+  return '<span class="ok">'+esc(vaultPath)+'</span>'+(vaultIsCustom?'':'<br>（默认位置，可移动到其他位置，如 U 盘）');
+}
+function openSettings(){
+  const s=state.vault.settings;
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">设置</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      '<div class="set-group"><div class="sg-title">安全</div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">自动锁定</div><div class="set-desc">无操作达到该时间后自动锁定保险库</div></div>'+
+          '<select class="input" id="sLock">'+[1,3,5,10,30].map(m=>'<option value="'+m+'"'+(s.autoLockMin===m?' selected':'')+'>'+m+' 分钟</option>').join('')+'<option value="0"'+(s.autoLockMin===0?' selected':'')+'>不锁定</option></select></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">窗口失焦时立即锁定</div><div class="set-desc">切换到其他窗口后自动锁定（打开文件对话框时不会误锁）</div></div>'+
+          '<label class="chk"><input type="checkbox" id="sBlur"'+(s.lockOnBlur?' checked':'')+'>开启</label></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">剪贴板自动清空</div><div class="set-desc">复制密码后经过该时间自动覆盖剪贴板</div></div>'+
+          '<select class="input" id="sClip">'+[10,30,60].map(m=>'<option value="'+m+'"'+(s.clipClearSec===m?' selected':'')+'>'+m+' 秒</option>').join('')+'<option value="0"'+(s.clipClearSec===0?' selected':'')+'>不清空</option></select></div>'+
+      '</div>'+
+      '<div class="set-group"><div class="sg-title">数据文件</div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">'+ICONS.file+' 当前数据文件位置</div></div>'+
+          '<button class="btn small" id="btnMove">'+ICONS.edit+'移动到其他位置…</button></div>'+
+        '<p class="file-status" id="fileStatus">'+fileLocationText()+'</p>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">多文件管理</div><div class="set-desc">可打开其他 .vault 文件（如 U 盘里的备份），切换后需用对应主密码解锁</div></div>'+
+          '<div style="display:flex;gap:7px"><button class="btn small" id="btnOpenOther">'+ICONS.folder+'打开其他文件…</button>'+
+          (vaultIsCustom?'<button class="btn small" id="btnRestore">恢复默认位置</button>':'')+'</div></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">备份</div><div class="set-desc">导出的文件同样是 AES-256-GCM 加密的</div></div>'+
+          '<button class="btn small" id="btnExport">'+ICONS.down+'导出备份…</button></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">导入浏览器密码</div><div class="set-desc">支持 Chrome / Edge 导出的密码 CSV（浏览器设置 → 密码管理 → 导出密码）。导入后请删除该明文 CSV</div></div>'+
+          '<button class="btn small" id="btnImportCsv">'+ICONS.up+'从 CSV 导入…</button></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">导出给浏览器</div><div class="set-desc">生成 Chrome 可直接导入的明文 CSV（密码管理 → 三个点 → 导入密码），导出后请尽快导入并删除</div></div>'+
+          '<button class="btn small" id="btnExportCsv">'+ICONS.down+'导出 CSV…</button></div>'+
+      '</div>'+
+      '<div class="set-group"><div class="sg-title">桌面</div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">关闭时最小化到系统托盘</div><div class="set-desc">点 ✕ 隐藏到托盘（托盘右键菜单可退出）；全局快捷键 Ctrl+Alt+V 或托盘左键可呼出/隐藏窗口；托盘菜单还会显示收藏条目，点击直接复制密码</div></div>'+
+          '<label class="chk"><input type="checkbox" id="sTray"'+(s.closeToTray?' checked':'')+'>开启</label></div>'+
+      '</div>'+
+      '<div class="set-group"><div class="sg-title">主密码</div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">修改主密码</div><div class="set-desc">使用新密码重新加密全部数据</div></div>'+
+          '<button class="btn small" id="btnChPw">'+ICONS.key+'修改</button></div>'+
+      '</div>'+
+      '<p style="font-size:11px;color:var(--tx2);text-align:center;padding:14px 0 10px">OfficeVault Desktop v1.0 · AES-256-GCM + PBKDF2(600000) · 全程离线，无任何网络请求</p>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn primary" data-x>完成</button></div>',
+    560);
+  ov.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+  ov.querySelector('#sLock').onchange=async function(){ state.vault.settings.autoLockMin=+this.value; await persist(); resetLockTimer(); toast('自动锁定已更新'); };
+  ov.querySelector('#sBlur').onchange=async function(){ state.vault.settings.lockOnBlur=this.checked; await persist(); toast(this.checked?'已开启失焦锁定':'已关闭失焦锁定'); };
+  ov.querySelector('#sTray').onchange=async function(){ state.vault.settings.closeToTray=this.checked; await persist(); toast(this.checked?'关闭窗口将最小化到托盘':'关闭窗口将直接退出'); };
+  ov.querySelector('#sClip').onchange=async function(){ state.vault.settings.clipClearSec=+this.value; await persist(); toast('剪贴板策略已更新'); };
+  ov.querySelector('#btnMove').onclick=moveVaultFile;
+  ov.querySelector('#btnOpenOther').onclick=()=>openVaultFile(true);
+  const rb=ov.querySelector('#btnRestore');
+  if(rb) rb.onclick=restoreDefaultLocation;
+  ov.querySelector('#btnExport').onclick=exportVault;
+  ov.querySelector('#btnImportCsv').onclick=importChromeCsvFlow;
+  ov.querySelector('#btnExportCsv').onclick=exportChromeCsv;
+  ov.querySelector('#btnChPw').onclick=()=>{ closeModal(); openChangePw(); };
+}
+async function pickDialog(fn){
+  dialogBusy++;
+  try{ return await fn(); }
+  finally{ dialogBusy--; }
+}
+async function moveVaultFile(){
+  if(!state.blob){ toast('还没有可移动的数据'); return; }
+  const picked=await pickDialog(()=>invoke('pick_save_dialog', {suggested:'密码保险库.vault'}));
+  if(!picked) return;
+  try{
+    await invoke('write_text_at', {path: picked, content: JSON.stringify(state.blob, null, 2)});
+    await invoke('set_vault_path', {path: picked});
+    await loadPathInfo();
+    closeModal(); openSettings();
+    toast('已移动到 '+picked);
+  }catch(e){ toast('移动失败：'+e.message); }
+}
+async function openVaultFile(needConfirm){
+  const picked=await pickDialog(()=>invoke('pick_open_dialog'));
+  if(!picked) return;
+  if(needConfirm && !(await confirmDlg('打开其他保险库文件','将切换打开选中的保险库文件，并立即锁定当前会话。确定继续？','切换',false))) return;
+  try{
+    const text=await invoke('read_text_at', {path: picked});
+    const env=JSON.parse(text);
+    if(!env.salt || !env.iv || !env.ct || !env.kdf || !env.kdf.iterations) throw new Error('不是有效的保险库文件');
+    await invoke('set_vault_path', {path: picked});
+    await loadPathInfo();
+    state.blob=env;
+    toast('已切换到「'+baseName(picked)+'」，请输入该文件对应的主密码');
+    lockNow();
+  }catch(e){ toast('打开失败：'+e.message); }
+}
+async function restoreDefaultLocation(){
+  if(!(await confirmDlg('恢复默认位置','将切换回默认的文档目录数据文件（原自定义文件不会被删除），并立即锁定。确定继续？','恢复',false))) return;
+  try{
+    await invoke('set_vault_path', {path: ''});
+    await loadPathInfo();
+    await loadVaultFromDisk();
+    lockNow();
+    toast('已恢复默认位置');
+  }catch(e){ toast('操作失败：'+e.message); }
+}
+async function exportVault(){
+  if(!state.blob){ toast('没有可导出的数据'); return; }
+  const picked=await pickDialog(()=>invoke('pick_save_dialog', {suggested:'密码保险库-'+fmtDate(new Date().toISOString()).replaceAll('-','')+'.vault'}));
+  if(!picked) return;
+  try{
+    await invoke('write_text_at', {path: picked, content: JSON.stringify(state.blob, null, 2)});
+    toast('已导出到 '+picked);
+  }catch(e){ toast('导出失败：'+e.message); }
+}
+/* ---------- Chrome / Edge 密码 CSV 导入 ---------- */
+function parseCsv(text){
+  text=String(text).replace(/^\uFEFF/,'');
+  const rows=[]; let row=[], field='', inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+      else field+=c;
+    }else if(c==='"') inQ=true;
+    else if(c===','){ row.push(field); field=''; }
+    else if(c==='\n'){ row.push(field); field=''; rows.push(row); row=[]; }
+    else if(c!=='\r') field+=c;
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.length && r.some(x=>String(x).trim()!==''));
+}
+function hostFromUrl(u){
+  const s=String(u||'').trim();
+  try{ return new URL(s).hostname; }catch(e){}
+  return s.replace(/^https?:\/\//i,'').split('/')[0];
+}
+function chromeCsvToEntries(text){
+  const rows=parseCsv(text);
+  if(!rows.length) throw new Error('CSV 内容为空');
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  let iName=head.indexOf('name'), iUrl=head.indexOf('url'), iUser=head.indexOf('username'), iPass=head.indexOf('password');
+  if(iUrl<0 && iUser<0 && iPass<0){ iName=0; iUrl=1; iUser=2; iPass=3; } // 无表头时按 Chrome 固定列序
+  const out=[];
+  for(const r of rows.slice(1)){
+    const get=i=>(i>=0&&i<r.length)?r[i]:'';
+    const name=String(get(iName)).trim(), url=String(get(iUrl)).trim();
+    const username=String(get(iUser)).trim(), password=String(get(iPass));
+    if(!name && !url && !username && !password) continue;
+    out.push({name,url,username,password});
+  }
+  return out;
+}
+async function importFromCsvText(text){
+  const items=chromeCsvToEntries(text);
+  if(!items.length){ toast('没有解析到可导入的条目'); return; }
+  if(!(await confirmDlg('导入浏览器密码',
+    '解析到 '+items.length+' 条账号，将合并进当前保险库：与现有条目重复的（相同网址+用户名）自动跳过，全部打上「浏览器导入」标签方便检查。导入完成后建议删除这份明文 CSV 文件。',
+    '导入', false))) return;
+  const now=new Date().toISOString();
+  let added=0, skipped=0;
+  for(const it of items){
+    const hasKey=!!(it.url||it.username);
+    const dup=hasKey && state.vault.entries.some(x=>(x.url||'')===(it.url||'') && (x.username||'')===(it.username||''));
+    if(dup){ skipped++; continue; }
+    state.vault.entries.push({
+      id:uid(), title: it.name||hostFromUrl(it.url)||'未命名',
+      username:it.username, password:it.password, url:it.url,
+      notes:'', tags:['浏览器导入'], fields:[], favorite:false,
+      createdAt:now, updatedAt:now
+    });
+    added++;
+  }
+  await persist(); renderAll();
+  toast('导入完成：新增 '+added+' 条'+(skipped?('，跳过重复 '+skipped+' 条'):''), 4200);
+}
+async function importChromeCsvFlow(){
+  const picked=await pickDialog(()=>invoke('pick_csv_dialog'));
+  if(!picked) return;
+  try{
+    const text=await invoke('read_text_at', {path: picked});
+    await importFromCsvText(text);
+  }catch(e){ toast('导入失败：'+e.message); }
+}
+/* ---------- 导出为 Chrome 可导入的密码 CSV ---------- */
+function csvField(v){
+  const s=String(v??'');
+  return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function entriesToChromeCsv(){
+  const rows=[['name','url','username','password']];
+  let skipped=0;
+  for(const e of state.vault.entries){
+    if(!e.url || !e.password){ skipped++; continue; } // Chrome 导入必须有网址
+    rows.push([e.title||hostFromUrl(e.url), e.url, e.username||'', e.password]);
+  }
+  return { csv: rows.map(r=>r.map(csvField).join(',')).join('\r\n'), skipped };
+}
+async function exportChromeCsv(){
+  const total=state.vault.entries.length;
+  const {csv, skipped}=entriesToChromeCsv();
+  const exportable=total-skipped;
+  if(!exportable){ toast('没有可导出的条目（Chrome 导入需要条目同时有网址和密码）'); return; }
+  if(!(await confirmDlg('导出给浏览器',
+    '将导出 '+exportable+' 条账号为明文 CSV（Chrome/Edge 可直接导入）。'+(skipped?('另有 '+skipped+' 条缺少网址或密码的条目已跳过。'):'')+'注意：该文件不加密，导入完成后请立即删除。',
+    '导出', false))) return;
+  const picked=await pickDialog(()=>invoke('pick_save_dialog', {suggested:'chrome-passwords.csv'}));
+  if(!picked) return;
+  try{
+    await invoke('write_text_at', {path: picked, content: csv});
+    toast('已导出 '+exportable+' 条，导入完成后请删除该明文文件', 5200);
+  }catch(e){ toast('导出失败：'+e.message); }
+}
+function openChangePw(){
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">修改主密码</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      '<label class="flabel">当前主密码</label>'+
+      '<input class="input" id="cp0" type="password" autocomplete="current-password">'+
+      '<label class="flabel">新主密码（至少 8 位）</label>'+
+      '<input class="input" id="cp1" type="password" autocomplete="new-password">'+
+      meterHTML()+
+      '<label class="flabel">确认新主密码</label>'+
+      '<input class="input" id="cp2" type="password" autocomplete="new-password">'+
+      '<div class="lock-err" id="cpErr"></div>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="btnCpSave">确认修改</button></div>',
+    460);
+  const root=ov.querySelector('.modal');
+  ov.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+  const p1=root.querySelector('#cp1');
+  p1.addEventListener('input', ()=>updateMeter(root, p1.value));
+  root.querySelector('#btnCpSave').onclick=async()=>{
+    const p0=root.querySelector('#cp0').value, n1=p1.value, n2=root.querySelector('#cp2').value;
+    const err=root.querySelector('#cpErr');
+    err.textContent='';
+    if(n1.length<8){ err.textContent='新主密码至少 8 位'; return; }
+    if(n1!==n2){ err.textContent='两次输入的新密码不一致'; return; }
+    const btn=root.querySelector('#btnCpSave'); btn.disabled=true; btn.textContent='正在重新加密…';
+    try{
+      const env=state.blob;
+      const oldKey=await deriveKey(p0, b64d(env.salt), env.kdf.iterations);
+      await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(env.iv)}, oldKey, b64d(env.ct)); // 验证当前密码
+      const salt=crypto.getRandomValues(new Uint8Array(16));
+      state.saltB64=b64e(salt); state.iter=ITERATIONS;
+      state.key=await deriveKey(n1, salt, state.iter);
+      await persist();
+      closeModal(); toast('主密码已修改');
+    }catch(e){
+      err.textContent= /OperationError|decrypt/.test(e.message||e.name) ? '当前主密码不正确' : ('修改失败：'+e.message);
+      btn.disabled=false; btn.textContent='确认修改';
+    }
+  };
+}
+
+/* ================================================================
+ * 启动
+ * ================================================================ */
+(async function init(){
+  try{
+    window.__TAURI__.event.listen('tray-fav', ev=>{
+      const id=String(ev.payload||'');
+      if(!state.unlocked || !state.vault){ toast('请先解锁保险库', 2600); return; }
+      const en=state.vault.entries.find(x=>x.id===id && !x.deletedAt);
+      if(en && en.password) copyText(en.password, en.title||'条目');
+      else toast('该条目没有可复制的密码');
+    });
+    window.__TAURI__.event.listen('tray-lock', ()=>{ if(state.unlocked) lockNow(); });
+  }catch(e){}
+  await loadPathInfo();
+  await loadVaultFromDisk();
+  renderLock();
+})();
+</script>
+</body>
+</html>
