@@ -13,7 +13,7 @@
         "title": "办公保险库",
         "width": 1280,
         "height": 800,
-        "minWidth": 1020,
+        "minWidth": 380,
         "minHeight": 640,
         "center": true
       }

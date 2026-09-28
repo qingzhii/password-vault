@@ -252,6 +252,42 @@ select.input{appearance:auto;cursor:pointer}
 .toast.out{animation:toastOut .25s ease forwards}
 @keyframes toastIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateY(10px)}}
+
+/* ============ 移动端 / 窄窗口响应式 ============ */
+.mbar{display:none}
+#drawerBackdrop{position:fixed;inset:0;background:rgba(5,7,11,.55);z-index:55;opacity:0;pointer-events:none;transition:opacity .2s}
+.d-back{display:none}
+@media (max-width:860px){
+  .appview{display:flex;flex-direction:column;height:100vh;height:100dvh}
+  .mbar{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg1);
+    border-bottom:1px solid var(--line);flex:none;position:relative;z-index:50}
+  .mbar .m-title{flex:1;font-size:14.5px;font-weight:700;letter-spacing:.03em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  #drawerBackdrop.show{opacity:1;pointer-events:auto}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(82vw,300px);z-index:60;
+    transform:translateX(-105%);transition:transform .22s ease;box-shadow:var(--sh)}
+  .sidebar.open{transform:none}
+  .list-pane{flex:1;min-height:0;border-right:none;width:100%}
+  .detail-pane{position:fixed;inset:0;z-index:70;background:var(--bg0);display:none;overflow-y:auto}
+  .detail-pane.show{display:block}
+  .d-back{display:inline-flex}
+  .d-head{flex-wrap:wrap;row-gap:10px}
+  .d-head .avatar.big{width:42px;height:42px;font-size:17px;border-radius:12px}
+  .d-tt{flex:1 1 calc(100% - 56px)}
+  .d-actions{flex-wrap:wrap;gap:7px}
+  .d-actions .btn{padding:9px 13px}
+  .d-actions .btn.primary{margin-left:auto}
+  .d-tt h2{white-space:normal;font-size:17px}
+  .d-tags{margin-top:6px}
+  .type-tabs{padding-top:10px}
+  .btn,.ibtn{min-height:34px}
+  .entry-row{padding:10px}
+  .frow{padding:13px 0}
+  .set-row{flex-wrap:wrap}
+  .set-row .btn,.set-row .input{flex:none}
+}
+@media (max-width:860px) and (hover:none){
+  .entry-row:hover{background:transparent}
+}
 </style>
 </head>
 <body>
@@ -264,7 +300,12 @@ select.input{appearance:auto;cursor:pointer}
 
 <!-- ======== 主界面 ======== -->
 <div id="appView" class="appview hidden">
-  <aside class="sidebar">
+  <div class="mbar">
+    <button class="ibtn" id="btnMenu" title="菜单"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <div class="m-title">办公保险库</div>
+    <button class="ibtn" id="btnMLock" title="立即锁定"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+  </div>
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <span id="brandLogo"></span>
       <div class="brand-t"><b>办公保险库</b><span>OFFICE VAULT</span></div>
@@ -308,6 +349,7 @@ select.input{appearance:auto;cursor:pointer}
 
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
+<div id="drawerBackdrop"></div>
 
 <script>
 'use strict';
@@ -350,6 +392,8 @@ const ICONS = {
   open:I('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>'),
   bmark:I('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'),
   chev:I('<polyline points="9 18 15 12 9 6"/>'),
+  chevL:I('<polyline points="15 18 9 12 15 6"/>'),
+  menu:I('<path d="M3 6h18M3 12h18M3 18h18"/>'),
   note:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>')
 };
 const LOGO = (size)=>'<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg'+size+'" x1="0" y1="0" x2="24" y2="24"><stop offset="0" stop-color="#6d8dff"/><stop offset="1" stop-color="#9a7bff"/></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="url(#lg'+size+')" stroke-width="1.5" fill="rgba(109,141,255,.07)"/><circle cx="12" cy="10.3" r="2.3" stroke="url(#lg'+size+')" stroke-width="1.5"/><path d="M12 12.6v3.6" stroke="url(#lg'+size+')" stroke-width="1.5" stroke-linecap="round"/></svg>';
@@ -550,6 +594,7 @@ function lockNow(){
   state.bm={view:'all', tag:null, folderId:null, q:'', collapsed:new Set()};
   $('#searchInput').value='';
   /* 关键：锁定时必须关掉所有弹窗，否则残留的表单会在无数据状态下静默失败 */
+  closeDrawer(); closeMobileDetail();
   closeModal();
   if(toastEl){ toastEl.remove(); toastEl=null; }
   clearTimeout(toastTimer);
@@ -708,6 +753,7 @@ function visibleEntries(){
   return arr;
 }
 function renderAll(){
+  closeDrawer();
   renderSidebar();
   renderBatchBar();
   const bm=state.type==='bm';
@@ -833,6 +879,7 @@ function renderPwDetail(){
   pane.innerHTML=
     banner+
     '<div class="d-head">'+
+      '<button class="ibtn d-back" id="dBack" title="返回">'+ICONS.chevL+'</button>'+
       '<div class="avatar big" style="'+avStyle(e.title)+'">'+esc(initial(e.title))+'</div>'+
       '<div class="d-tt"><h2>'+esc(e.title)+'</h2>'+tagsHtml+'</div>'+
       '<div class="d-actions">'+actions+'</div>'+
@@ -846,6 +893,7 @@ function renderPwDetail(){
         '<span>'+ICONS.refresh+'更新于 '+fmtTime(e.updatedAt)+'</span>'+
       '</div>'+
     '</div>';
+  pane.querySelector('#dBack').onclick=closeMobileDetail;
   const done=()=>{ state.selectedId=null; renderAll(); };
   if(inTrash){
     pane.querySelector('#dRestore').onclick=async()=>{ delete e.deletedAt; e.updatedAt=new Date().toISOString(); await persist(); renderAll(); toast('已恢复「'+e.title+'」'); };
@@ -1045,6 +1093,7 @@ $('#entryList').addEventListener('click', e=>{
   }
   state.selectedId=entry.id;
   renderList(); renderDetail();
+  showMobileDetail();
 });
 $('#btnNew').onclick=()=>{ if(state.type==='bm') return openBmModal(null); openEntryModal(null); };
 $('#btnLockNow').onclick=lockNow;
@@ -1863,6 +1912,7 @@ function renderBmDetail(){
   const tags=(b.tags&&b.tags.length)?b.tags.map(t=>'<span class="chip">'+esc(t)+'</span>').join(''):'<span style="color:var(--tx2);font-size:12.5px">无</span>';
   pane.innerHTML=
     '<div class="d-head">'+
+      '<button class="ibtn d-back" id="dBack" title="返回">'+ICONS.chevL+'</button>'+
       '<div class="avatar big" style="'+avStyle(b.title||b.url)+'">'+esc(initial(b.title||hostOf(b.url)))+'</div>'+
       '<div class="d-tt"><h2>'+esc(b.title||hostOf(b.url))+'</h2><div class="d-tags">'+tags+'</div></div>'+
       '<div class="d-actions">'+
@@ -1890,6 +1940,7 @@ function renderBmDetail(){
   pane.querySelector('#bDel').onclick=()=>{
     delBm(b.id);
   };
+  pane.querySelector('#dBack').onclick=closeMobileDetail;
 }
 
 /* ---- 书签：列表交互 ---- */
@@ -1915,6 +1966,7 @@ function bmListClick(e){
   if(F(id)){ bmSetView('folder',id); return; } // 文件夹行：进入该文件夹
   state.selectedId=id;
   renderBmList(); renderBmDetail();
+  showMobileDetail();
 }
 
 /* ---- 书签：增删改 ---- */
@@ -2263,8 +2315,24 @@ function setType(t){
   $('#searchInput').placeholder=t==='bm'?'搜索书签 / 网址 / 标签…　Ctrl+K':'搜索名称 / 用户名 / 备注…　Ctrl+K';
   $('#tabPw').classList.toggle('active',t==='pw');
   $('#tabBm').classList.toggle('active',t==='bm');
+  closeMobileDetail();
   renderAll();
 }
+
+/* ---- 移动端：抽屉与全屏详情 ---- */
+function isMobileLayout(){ return window.matchMedia('(max-width:860px)').matches; }
+function closeDrawer(){ $('#sidebar').classList.remove('open'); $('#drawerBackdrop').classList.remove('show'); }
+function toggleDrawer(){
+  const open=!$('#sidebar').classList.contains('open');
+  $('#sidebar').classList.toggle('open',open);
+  $('#drawerBackdrop').classList.toggle('show',open);
+}
+function showMobileDetail(){ if(isMobileLayout()) $('#detailPane').classList.add('show'); }
+function closeMobileDetail(){ $('#detailPane').classList.remove('show'); }
+$('#btnMenu').onclick=toggleDrawer;
+$('#drawerBackdrop').onclick=closeDrawer;
+$('#btnMLock').onclick=()=>{ closeDrawer(); lockNow(); };
+window.addEventListener('resize', ()=>{ if(!isMobileLayout()){ closeDrawer(); closeMobileDetail(); } });
 
 /* ================================================================
  * 启动
