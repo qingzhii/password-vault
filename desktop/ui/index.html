@@ -159,10 +159,10 @@ select.input{appearance:auto;cursor:pointer}
 .tree-item .tw.empty{visibility:hidden}
 .tree-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tree-item .cnt{font-size:11px;color:var(--tx2)}
-/* 书签上下文条 */
-.bm-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;row-gap:7px;padding:2px 14px 8px;font-size:12px;color:var(--tx1);flex:none}
-.bm-bar .pth{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%}
-.bm-bar .sp{margin-left:auto;display:flex;gap:6px}
+/* 书签上下文条：两行式（位置一行、按钮一行），避免按钮被挤断换行 */
+.bm-bar{display:block;padding:2px 14px 8px;font-size:12px;color:var(--tx1);flex:none}
+.bm-bar .pth{display:block;font-weight:600;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bm-bar .sp{display:flex;gap:6px;flex-wrap:wrap}
 .entry-list{flex:1;overflow-y:auto;padding:2px 8px 14px}
 .entry-row{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;cursor:pointer;
   transition:background .12s;margin-bottom:2px;border:1px solid transparent}
@@ -618,11 +618,12 @@ function renderLock(){
     p1.focus();
   }else{
     /* --- 解锁 --- */
-    const loc=vaultPath?('　·　'+baseName(vaultPath)):'';
+    const loc=vaultPath?baseName(vaultPath):'';
     card.innerHTML=
       '<div class="lock-logo">'+LOGO(52)+'</div>'+
       '<h1>办公保险库</h1>'+
-      '<p class="lock-sub">输入主密码解锁'+(state.blob.updated?('　·　上次保存 '+fmtTime(state.blob.updated)):'')+esc(loc)+'</p>'+
+      '<p class="lock-sub">输入主密码解锁</p>'+
+      '<p class="lock-sub" style="margin-top:0">'+(state.blob.updated?('上次保存 '+fmtTime(state.blob.updated)+'　·　'):'')+esc(loc)+'</p>'+
       '<input class="input pw-input" id="pw0" type="password" placeholder="主密码" autocomplete="current-password" style="margin-top:14px">'+
       '<button class="btn primary big" id="btnUnlock" style="margin-top:16px">解锁</button>'+
       '<div class="lock-err" id="lockErr"></div>'+
@@ -1754,7 +1755,7 @@ function renderBmSidebar(){
   $('#navFav').classList.toggle('active',state.bm.view==='fav');
   $('#navTrash').classList.toggle('active',state.bm.view==='trash');
   let h='';
-  h+='<div id="navTree">';
+  h+='<div class="nav-label">文件夹</div><div id="navTree">';
   h+=rootFolders().map(([k,f])=>bmTreeItem(f,0)).join('')||'<div style="font-size:12px;color:var(--tx2);padding:2px 12px">无文件夹</div>';
   h+='</div>';
   const tags=bmTagCounts();
@@ -1788,17 +1789,17 @@ function bmTreeItem(f,depth){
 function renderBmBar(){
   const bar=$('#bmBar');
   const v=state.bm.view;
-  let pth='<b>书签库</b>', acts=[];
+  let pth='书签库', acts=[];
   if(v==='folder'){
     const f=F(state.bm.folderId);
-    if(f){ pth='位置：<span class="mono">'+esc(pathStr(f.id))+'</span>';
+    if(f){ pth=pathStr(f.id);
       if(f.parentId){ acts.push('<button class="btn small" id="bmRenF">'+ICONS.edit+'重命名</button>'); acts.push('<button class="btn small danger-ghost" id="bmDelF">'+ICONS.trash+'删除文件夹</button>'); } }
   }
-  if(v==='trash'){ pth='回收站：书签可恢复或彻底删除'; acts.push('<button class="btn small danger-ghost" id="bmEmptyT">'+ICONS.trash+'清空回收站</button>'); }
+  if(v==='trash'){ pth='回收站'; acts.push('<button class="btn small danger-ghost" id="bmEmptyT">'+ICONS.trash+'清空回收站</button>'); }
   acts.push('<button class="btn small" id="bmNewF">'+ICONS.folder+'新建文件夹</button>');
-  acts.push('<button class="btn small" id="bmImportN">'+ICONS.up+'导入 Netscape</button>');
-  acts.push('<button class="btn small" id="bmExportH">'+ICONS.down+'导出 HTML</button>');
-  bar.innerHTML='<span class="pth">'+pth+'</span><span class="sp">'+acts.join('')+'</span>';
+  acts.push('<button class="btn small" id="bmImportN" title="从浏览器导出的书签 HTML 导入">'+ICONS.up+'导入</button>');
+  acts.push('<button class="btn small" id="bmExportH" title="导出为 Netscape 书签 HTML">'+ICONS.down+'导出</button>');
+  bar.innerHTML='<div class="pth">'+esc(pth)+'</div><div class="sp">'+acts.join('')+'</div>';
   bar.querySelector('#bmNewF').onclick=()=>openFolderModal(v==='folder'?state.bm.folderId:rootId('bar'), null);
   bar.querySelector('#bmImportN').onclick=bmStartImport;
   bar.querySelector('#bmExportH').onclick=bmExportHtml;
