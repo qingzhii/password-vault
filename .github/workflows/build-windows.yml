@@ -33,6 +33,13 @@ jobs:
       - name: 安装依赖
         run: npm install
 
+      # cargo 不追踪 ../ui 前端文件，rust-cache 恢复的构建脚本缓存会把旧界面
+      # 固化进 exe；清掉最终包的缓存产物强制重新嵌入前端资源
+      - name: 清理缓存的最终包产物
+        shell: pwsh
+        run: cargo clean --release -p office-vault
+        working-directory: desktop/src-tauri
+
       - name: 构建 exe
         run: node node_modules/@tauri-apps/cli/tauri.js build --no-bundle
 
