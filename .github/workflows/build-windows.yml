@@ -33,19 +33,13 @@ jobs:
       - name: 安装依赖
         run: npm install
 
-      # cargo 不追踪 ../ui 前端文件，rust-cache 恢复的构建脚本缓存会把旧界面
-      # 固化进 exe；清掉最终包的缓存产物强制重新嵌入前端资源
-      - name: 清理缓存的最终包产物
-        shell: pwsh
-        run: cargo clean --release -p office-vault
-        working-directory: desktop/src-tauri
-
       - name: 构建 exe
         run: node node_modules/@tauri-apps/cli/tauri.js build --no-bundle
 
+      # 注意工作目录是 desktop/，产物必须复制到 desktop/密码保险库.exe 才会被上传
       - name: 复制为交付文件名
         shell: pwsh
-        run: Copy-Item 'src-tauri/target/release/office-vault.exe' '../密码保险库.exe'
+        run: Copy-Item 'src-tauri/target/release/office-vault.exe' '密码保险库.exe'
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
