@@ -1,0 +1,47 @@
+# 在 Windows runner 上构建桌面版 exe（与 README 中的本地构建命令一致）
+# 产物：desktop/密码保险库.exe（绿色单文件，--no-bundle 跳过安装器）
+name: Build Windows exe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/build-windows.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: 安装依赖
+        run: npm install
+
+      - name: 构建 exe
+        run: node node_modules/@tauri-apps/cli/tauri.js build --no-bundle
+
+      - name: 复制为交付文件名
+        shell: pwsh
+        run: Copy-Item 'src-tauri/target/release/office-vault.exe' '../密码保险库.exe'
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: desktop/密码保险库.exe
+          if-no-files-found: error
