@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - 'desktop/**'
+      - '!desktop/密码保险库.exe'   # 产物回写仓库不应再次触发构建
       - '.github/workflows/build-windows.yml'
   workflow_dispatch:
 

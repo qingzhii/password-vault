@@ -129,7 +129,9 @@ select.input{appearance:auto;cursor:pointer}
 .search{position:relative;flex:1}
 .search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--tx2);width:15px;height:15px}
 .search .input{padding-left:34px;font-size:13px}
-.batch-bar{display:flex;align-items:center;gap:8px;padding:2px 14px 8px;font-size:12.5px;color:var(--tx1);flex:none}
+.batch-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;row-gap:7px;padding:2px 14px 8px;font-size:12.5px;color:var(--tx1);flex:none}
+.batch-bar .btn{flex:none;white-space:nowrap}
+.batch-bar>span{white-space:nowrap}
 .batch-bar b{color:var(--acc);font-size:14px}
 .rowchk{display:flex;align-items:center;flex:none;cursor:pointer}
 .rowchk input{width:15px;height:15px;accent-color:var(--acc);pointer-events:none}
@@ -810,7 +812,8 @@ function renderDetail(){
     };
   }
   const pwShown=pane.querySelector('#pwShown');
-  pane.querySelector('[data-act="togglePw"]').onclick=function(){
+  /* 无密码的条目（纯 API Key 留空等）没有该按钮，判空避免中断后续按钮绑定 */
+  const tpBtn=pane.querySelector('[data-act="togglePw"]'); if(tpBtn) tpBtn.onclick=function(){
     const hidden=pwShown.dataset.hidden==='1';
     pwShown.dataset.hidden=hidden?'0':'1';
     pwShown.className=hidden?'mono':'pw-mask mono';
@@ -857,7 +860,7 @@ $('#btnBatch').onclick=()=>{
   state.selectedIds.clear();
   state.selectedId=null;
   renderAll();
-  if(state.batchMode) toast('批量模式：勾选条目后点「删除所选」，可配合搜索/标签筛选', 3600);
+  if(state.batchMode) toast('批量模式：勾选条目后可批量删除或设置分组/标签，可配合搜索/筛选', 3600);
 };
 function renderBatchBar(){
   const bar=$('#batchBar');
@@ -868,11 +871,12 @@ function renderBatchBar(){
   bar.innerHTML='<span>已选 <b>'+state.selectedIds.size+'</b> / '+state.vault.entries.length+' 条'+(trashView?'（回收站）':'')+'</span>'+
     '<button class="btn small" id="bSelAll">全选当前</button>'+
     (trashView?'<button class="btn small" id="bRestoreSel">'+ICONS.restore+'恢复所选</button><button class="btn small danger" id="bDelSel">'+ICONS.trash+'彻底删除</button>'
-              :'<button class="btn small danger" id="bDelSel">'+ICONS.trash+'删除所选</button>')+
+              :'<button class="btn small" id="bSetAttrs">'+ICONS.tag+'分组 / 标签</button><button class="btn small danger" id="bDelSel">'+ICONS.trash+'删除所选</button>')+
     '<button class="btn small" id="bExitSel">完成</button>'+
     '<span style="margin-left:auto;color:var(--tx2);font-size:11.5px">“全选当前”只选中筛选结果</span>';
   $('#bSelAll').onclick=()=>{ visibleEntries().forEach(x=>state.selectedIds.add(x.id)); renderBatchBar(); renderList(); };
   $('#bDelSel').onclick=batchDelete;
+  const sa=$('#bSetAttrs'); if(sa) sa.onclick=batchSetAttrs;
   $('#bExitSel').onclick=()=>{ state.batchMode=false; state.selectedIds.clear(); renderAll(); };
   const rs=$('#bRestoreSel');
   if(rs) rs.onclick=batchRestore;
@@ -903,6 +907,52 @@ async function batchRestore(){
   state.selectedIds.clear(); state.batchMode=false; state.selectedId=null;
   await persist(); renderAll();
   toast('已恢复 '+n+' 条条目');
+}
+async function batchSetAttrs(){
+  const n=state.selectedIds.size;
+  if(!n){ toast('请先勾选要操作的条目'); return; }
+  const groups=[...new Set(state.vault.entries.filter(x=>!x.deletedAt&&x.group).map(x=>x.group))];
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">批量设置分组与标签</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      '<p style="color:var(--tx1);font-size:12.5px;margin:2px 0 4px;line-height:1.7">将应用到选中的 <b style="color:var(--acc)">'+n+'</b> 条条目，留空的部分不会被修改。</p>'+
+      '<label class="flabel">分组</label>'+
+      '<input class="input" id="bGroup" list="bGroupList" placeholder="如：工作 / 个人 / 项目A" value="">'+
+      '<datalist id="bGroupList">'+groups.map(g=>'<option value="'+esc(g)+'">').join('')+'</datalist>'+
+      '<label class="chk" style="margin:8px 0 0"><input type="checkbox" id="bGroupClear">清空这些条目的分组</label>'+
+      '<label class="flabel">标签</label>'+
+      '<input class="input" id="bTags" placeholder="用空格或逗号分隔，如：办公 邮箱" value="">'+
+      '<div class="chk-row" style="margin-top:8px">'+
+        '<label class="chk"><input type="radio" name="bTagMode" value="add" checked>添加到现有标签</label>'+
+        '<label class="chk"><input type="radio" name="bTagMode" value="replace">替换现有标签</label>'+
+      '</div>'+
+      '<p style="color:var(--tx2);font-size:11.5px;margin-top:6px">替换模式留空即清空标签。</p>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="bApply">应用</button></div>',
+    460);
+  ov.querySelectorAll('[data-x]').forEach(b=>b.onclick=closeModal);
+  ov.querySelector('#bApply').onclick=async()=>{
+    const grp=ov.querySelector('#bGroup').value.trim();
+    const clearGrp=ov.querySelector('#bGroupClear').checked;
+    const tagsRaw=ov.querySelector('#bTags').value.trim();
+    const mode=ov.querySelector('input[name="bTagMode"]:checked').value;
+    if(!grp && !clearGrp && !tagsRaw){ toast('没有需要应用的修改'); return; }
+    const tags=[...new Set(tagsRaw.split(/[,，、\s]+/).map(t=>t.trim()).filter(Boolean))].slice(0,8);
+    const now=new Date().toISOString();
+    state.vault.entries.forEach(x=>{
+      if(!state.selectedIds.has(x.id)) return;
+      if(clearGrp) delete x.group;
+      else if(grp) x.group=grp;
+      if(tagsRaw){
+        x.tags = mode==='replace' ? tags.slice() : [...new Set([...(x.tags||[]), ...tags])].slice(0,8);
+      }
+      x.updatedAt=now;
+    });
+    closeModal();
+    state.selectedIds.clear(); state.batchMode=false; state.selectedId=null;
+    await persist(); renderAll();
+    toast('已更新 '+n+' 条条目');
+  };
 }
 $('#searchInput').addEventListener('input', function(){ state.filter.q=this.value; renderList(); });
 document.addEventListener('keydown', e=>{
