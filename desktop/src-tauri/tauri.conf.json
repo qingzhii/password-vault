@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "密码保险库",
+        "title": "办公保险库",
         "width": 1280,
         "height": 800,
         "minWidth": 1020,

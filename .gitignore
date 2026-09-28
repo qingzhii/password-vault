@@ -10,3 +10,4 @@ target/
 # 系统杂项
 Thumbs.db
 .DS_Store
+tools/web-pre-merge.html

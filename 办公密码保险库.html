@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>密码保险库 · 离线版</title>
+<title>办公保险库</title>
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="%236d8dff" stroke-width="1.8"/><circle cx="12" cy="10.5" r="2.2" stroke="%236d8dff" stroke-width="1.8"/><path d="M12 12.7v3.3" stroke="%236d8dff" stroke-width="1.8" stroke-linecap="round"/></svg>'>
 <style>
 /* ============ 设计变量 ============ */
@@ -142,6 +142,27 @@ select.input{appearance:auto;cursor:pointer}
 .entry-row.deleted{opacity:.55}
 .chip .ic{width:11px;height:11px;vertical-align:-1.5px}
 .chip.grp{background:rgba(65,211,146,.1);color:var(--ok)}
+/* 类型页签（密码 | 书签） */
+.type-tabs{display:flex;gap:6px;padding:12px 14px 0;flex:none}
+.type-tabs button{flex:1;padding:8px;border-radius:10px;border:1px solid var(--line2);background:var(--bg2);
+  color:var(--tx1);font-size:13px;font-weight:600;transition:all .15s}
+.type-tabs button.active{background:var(--accSoft);border-color:var(--acc);color:var(--acc)}
+.type-tabs button:hover{color:var(--tx0)}
+/* 书签文件夹树 */
+.tree-item{display:flex;align-items:center;gap:6px;width:100%;padding:6px 12px;border-radius:9px;border:none;
+  background:none;color:var(--tx1);font-size:12.5px;text-align:left;cursor:pointer}
+.tree-item:hover{background:var(--bg3);color:var(--tx0)}
+.tree-item.active{background:var(--accSoft);color:var(--acc);font-weight:600}
+.tree-item .tw{width:13px;flex:none;display:inline-flex;justify-content:center;color:var(--tx2)}
+.tree-item .tw .ic{width:11px;height:11px;transition:transform .15s}
+.tree-item .tw.open .ic{transform:rotate(90deg)}
+.tree-item .tw.empty{visibility:hidden}
+.tree-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-item .cnt{font-size:11px;color:var(--tx2)}
+/* 书签上下文条 */
+.bm-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;row-gap:7px;padding:2px 14px 8px;font-size:12px;color:var(--tx1);flex:none}
+.bm-bar .pth{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%}
+.bm-bar .sp{margin-left:auto;display:flex;gap:6px}
 .entry-list{flex:1;overflow-y:auto;padding:2px 8px 14px}
 .entry-row{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:11px;cursor:pointer;
   transition:background .12s;margin-bottom:2px;border:1px solid transparent}
@@ -246,15 +267,18 @@ select.input{appearance:auto;cursor:pointer}
   <aside class="sidebar">
     <div class="brand">
       <span id="brandLogo"></span>
-      <div class="brand-t"><b>密码保险库</b><span>OFFLINE VAULT</span></div>
+      <div class="brand-t"><b>办公保险库</b><span>OFFICE VAULT</span></div>
     </div>
-    <button class="nav-item active" id="navAll"><span class="n-ic"></span>全部条目 <span class="cnt" id="cntAll">0</span></button>
+    <button class="nav-item active" id="navAll"><span class="n-ic"></span><span id="navAllTxt">全部条目</span> <span class="cnt" id="cntAll">0</span></button>
     <button class="nav-item" id="navFav"><span class="n-ic"></span>收藏 <span class="cnt" id="cntFav">0</span></button>
     <button class="nav-item" id="navTrash"><span class="n-ic"></span>回收站 <span class="cnt" id="cntTrash">0</span></button>
-    <div class="nav-label">分组</div>
-    <div id="navGroups"></div>
-    <div class="nav-label">标签</div>
-    <div id="navTags"></div>
+    <div id="navPw">
+      <div class="nav-label">分组</div>
+      <div id="navGroups"></div>
+      <div class="nav-label">标签</div>
+      <div id="navTags"></div>
+    </div>
+    <div id="navBm" class="hidden"></div>
     <div class="sidebar-foot">
       <button class="nav-item" id="btnSettings"><span class="n-ic"></span>设置</button>
       <button class="nav-item" id="btnLockNow"><span class="n-ic"></span>立即锁定</button>
@@ -262,6 +286,10 @@ select.input{appearance:auto;cursor:pointer}
   </aside>
 
   <section class="list-pane">
+    <div class="type-tabs">
+      <button id="tabPw" class="active" type="button">密码</button>
+      <button id="tabBm" type="button">书签</button>
+    </div>
     <div class="list-head">
       <div class="search">
         <span id="searchIc"></span>
@@ -270,6 +298,7 @@ select.input{appearance:auto;cursor:pointer}
       <button class="btn" id="btnBatch"><span class="n-ic"></span>批量</button>
       <button class="btn primary" id="btnNew"><span class="n-ic"></span>新建</button>
     </div>
+    <div id="bmBar" class="bm-bar hidden"></div>
     <div id="batchBar" class="batch-bar hidden"></div>
     <div class="entry-list" id="entryList"></div>
   </section>
@@ -318,6 +347,9 @@ const ICONS = {
   folder: I('<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>'),
   refresh:I('<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>'),
   restore:I('<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>'),
+  open:I('<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>'),
+  bmark:I('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'),
+  chev:I('<polyline points="9 18 15 12 9 6"/>'),
   note:   I('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>')
 };
 const LOGO = (size)=>'<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none"><defs><linearGradient id="lg'+size+'" x1="0" y1="0" x2="24" y2="24"><stop offset="0" stop-color="#6d8dff"/><stop offset="1" stop-color="#9a7bff"/></linearGradient></defs><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="url(#lg'+size+')" stroke-width="1.5" fill="rgba(109,141,255,.07)"/><circle cx="12" cy="10.3" r="2.3" stroke="url(#lg'+size+')" stroke-width="1.5"/><path d="M12 12.6v3.6" stroke="url(#lg'+size+')" stroke-width="1.5" stroke-linecap="round"/></svg>';
@@ -404,7 +436,9 @@ async function deriveKey(password, saltU8, iterations){
 const state={
   unlocked:false, key:null, vault:null, blob:null,
   saltB64:null, iter:ITERATIONS,
+  type:'pw',
   filter:{view:'all', tag:null, q:''},
+  bm:{view:'all', tag:null, folderId:null, q:'', collapsed:new Set()},
   selectedId:null,
   batchMode:false, selectedIds:new Set()
 };
@@ -513,6 +547,7 @@ function lockNow(){
   state.unlocked=false; state.key=null; state.vault=null;
   state.selectedId=null; state.filter={view:'all',tag:null,q:''};
   state.batchMode=false; state.selectedIds.clear();
+  state.bm={view:'all', tag:null, folderId:null, q:'', collapsed:new Set()};
   $('#searchInput').value='';
   /* 关键：锁定时必须关掉所有弹窗，否则残留的表单会在无数据状态下静默失败 */
   closeModal();
@@ -560,7 +595,7 @@ function renderLock(){
     /* --- 解锁 --- */
     card.innerHTML=
       '<div class="lock-logo">'+LOGO(52)+'</div>'+
-      '<h1>密码保险库</h1>'+
+      '<h1>办公保险库</h1>'+
       '<p class="lock-sub">输入主密码解锁'+(state.blob.updated?('　·　上次保存 '+fmtTime(state.blob.updated)):'')+'</p>'+
       '<input class="input pw-input" id="pw0" type="password" placeholder="主密码" autocomplete="current-password" style="margin-top:14px">'+
       '<button class="btn primary big" id="btnUnlock" style="margin-top:16px">解锁</button>'+
@@ -582,7 +617,7 @@ async function doCreate(){
     const salt=crypto.getRandomValues(new Uint8Array(16));
     state.saltB64=b64e(salt); state.iter=ITERATIONS;
     state.key=await deriveKey(p1, salt, state.iter);
-    state.vault={ v:1, entries:[], settings:{autoLockMin:5, clipClearSec:30}, meta:{createdAt:new Date().toISOString()} };
+    state.vault={ v:2, entries:[], bookmarks:newBookmarkStore(), settings:{autoLockMin:5, clipClearSec:30}, meta:{createdAt:new Date().toISOString()} };
     await persist();
     enterApp(true);
   }catch(e){
@@ -600,6 +635,9 @@ async function doUnlock(){
     const key=await deriveKey(pw, salt, env.kdf.iterations);
     const plain=await crypto.subtle.decrypt({name:'AES-GCM', iv:b64d(env.iv)}, key, b64d(env.ct));
     state.vault=JSON.parse(dec.decode(plain));
+    /* vault v2：合并书签库 */
+    if(!state.vault.bookmarks || !state.vault.bookmarks.roots) state.vault.bookmarks=newBookmarkStore();
+    if(state.vault.v!==2){ state.vault.v=2; state.upgraded=true; }
     state.key=key; state.saltB64=env.salt; state.iter=env.kdf.iterations;
     /* 若绑定了本地文件，趁这次点击的授权窗口恢复写权限 */
     if(fileHandle){
@@ -640,6 +678,7 @@ function enterApp(isNew){
     purged=before-state.vault.entries.length;
   }
   if(purged){ persist().catch(()=>{}); }
+  if(state.upgraded){ state.upgraded=false; persist().catch(()=>{}); toast('保险库已升级到 v2：新增书签区，可在顶部页签切换', 5000); }
   renderAll();
   resetLockTimer();
   if(isNew) toast('保险库已创建。建议到「设置」绑定本地 .vault 文件，防止浏览器数据被清理后丢失', 6500);
@@ -668,9 +707,22 @@ function visibleEntries(){
   arr.sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0) || (b.updatedAt>a.updatedAt?1:-1));
   return arr;
 }
-function renderAll(){ renderSidebar(); renderBatchBar(); renderList(); renderDetail(); }
+function renderAll(){
+  renderSidebar();
+  renderBatchBar();
+  const bm=state.type==='bm';
+  $('#bmBar').classList.toggle('hidden',!bm);
+  if(bm) renderBmBar();
+  renderList();
+  renderDetail();
+}
 
 function renderSidebar(){
+  const pw=state.type==='pw';
+  $('#navPw').classList.toggle('hidden',!pw);
+  $('#navBm').classList.toggle('hidden',pw);
+  if(!pw) return renderBmSidebar();
+  $('#navAllTxt').textContent='全部条目';
   const active=state.vault.entries.filter(e=>!e.deletedAt);
   $('#cntAll').textContent=active.length;
   $('#cntFav').textContent=active.filter(e=>e.favorite).length;
@@ -698,7 +750,8 @@ function renderSidebar(){
     b.onclick=()=>{ state.filter={view:'tag',tag:b.dataset.tag,q:''}; $('#searchInput').value=''; renderAll(); };
   });
 }
-function renderList(){
+function renderList(){ if(state.type==='bm') return renderBmList(); renderPwList(); }
+function renderPwList(){
   const arr=visibleEntries();
   const list=$('#entryList');
   if(!arr.length){
@@ -733,7 +786,8 @@ function renderList(){
     '</div>';
   }).join('');
 }
-function renderDetail(){
+function renderDetail(){ if(state.type==='bm') return renderBmDetail(); renderPwDetail(); }
+function renderPwDetail(){
   const pane=$('#detailPane');
   const e=state.vault.entries.find(x=>x.id===state.selectedId);
   if(!e){
@@ -850,9 +904,9 @@ function renderDetail(){
 }
 
 /* ---------- 列表与侧栏事件 ---------- */
-$('#navAll').onclick=()=>{ state.filter.view='all'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
-$('#navFav').onclick=()=>{ state.filter.view='fav'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
-$('#navTrash').onclick=()=>{ state.filter={view:'trash',tag:null,q:''}; $('#searchInput').value=''; state.selectedId=null; renderAll(); };
+$('#navAll').onclick=()=>{ if(state.type==='bm') return bmSetView('all'); state.filter.view='all'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
+$('#navFav').onclick=()=>{ if(state.type==='bm') return bmSetView('fav'); state.filter.view='fav'; state.filter.tag=null; state.filter.q=''; $('#searchInput').value=''; renderAll(); };
+$('#navTrash').onclick=()=>{ if(state.type==='bm') return bmSetView('trash'); state.filter={view:'trash',tag:null,q:''}; $('#searchInput').value=''; state.selectedId=null; renderAll(); };
 
 /* ---------- 批量管理 ---------- */
 $('#btnBatch').onclick=()=>{
@@ -860,9 +914,12 @@ $('#btnBatch').onclick=()=>{
   state.selectedIds.clear();
   state.selectedId=null;
   renderAll();
-  if(state.batchMode) toast('批量模式：勾选条目后可批量删除或设置分组/标签，可配合搜索/筛选', 3600);
+  if(state.batchMode) toast(state.type==='bm'
+    ?'批量模式：勾选书签后可删除/移动/恢复，可配合搜索/文件夹筛选'
+    :'批量模式：勾选条目后可批量删除或设置分组/标签，可配合搜索/筛选', 3600);
 };
 function renderBatchBar(){
+  if(state.type==='bm') return renderBmBatchBar();
   const bar=$('#batchBar');
   if(!bar) return;
   if(!state.batchMode){ bar.classList.add('hidden'); bar.innerHTML=''; return; }
@@ -882,6 +939,7 @@ function renderBatchBar(){
   if(rs) rs.onclick=batchRestore;
 }
 async function batchDelete(){
+  if(state.type==='bm') return bmBatchDelete();
   const n=state.selectedIds.size;
   if(!n){ toast('请先勾选要操作的条目'); return; }
   if(state.filter.view==='trash'){
@@ -954,11 +1012,15 @@ async function batchSetAttrs(){
     toast('已更新 '+n+' 条条目');
   };
 }
-$('#searchInput').addEventListener('input', function(){ state.filter.q=this.value; renderList(); });
+$('#searchInput').addEventListener('input', function(){
+  if(state.type==='bm') state.bm.q=this.value; else state.filter.q=this.value;
+  renderList();
+});
 document.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k' && state.unlocked){ e.preventDefault(); $('#searchInput').focus(); $('#searchInput').select(); }
 });
 $('#entryList').addEventListener('click', e=>{
+  if(state.type==='bm') return bmListClick(e);
   const row=e.target.closest('[data-row]');
   if(!row) return;
   const entry=state.vault.entries.find(x=>x.id===row.dataset.row);
@@ -984,7 +1046,7 @@ $('#entryList').addEventListener('click', e=>{
   state.selectedId=entry.id;
   renderList(); renderDetail();
 });
-$('#btnNew').onclick=()=>openEntryModal(null);
+$('#btnNew').onclick=()=>{ if(state.type==='bm') return openBmModal(null); openEntryModal(null); };
 $('#btnLockNow').onclick=lockNow;
 $('#btnSettings').onclick=openSettings;
 
@@ -1186,6 +1248,8 @@ function openSettings(){
           '<div style="display:flex;gap:7px"><button class="btn small" id="btnExport">'+ICONS.down+'导出</button><button class="btn small" id="btnImport">'+ICONS.up+'导入</button></div></div>'+
         '<div class="set-row"><div class="set-info"><div class="set-label">导入浏览器密码</div><div class="set-desc">支持 Chrome / Edge 导出的密码 CSV（浏览器设置 → 密码管理 → 导出密码）。导入后请删除该明文 CSV</div></div>'+
           '<button class="btn small" id="btnImportCsv">'+ICONS.up+'从 CSV 导入…</button></div>'+
+        '<div class="set-row"><div class="set-info"><div class="set-label">导入旧书签库</div><div class="set-desc">把「书签管理器」的书签库 JSON（如 我的书签库.json）合并进书签区，网址重复的自动跳过</div></div>'+
+          '<button class="btn small" id="btnMigrateBm">'+ICONS.folder+'选择书签库文件…</button></div>'+
         '<div class="set-row"><div class="set-info"><div class="set-label">导出给浏览器</div><div class="set-desc">生成 Chrome 可直接导入的明文 CSV（密码管理 → 三个点 → 导入密码），导出后请尽快导入并删除</div></div>'+
           '<button class="btn small" id="btnExportCsv">'+ICONS.down+'导出 CSV…</button></div>'+
       '</div>'+
@@ -1215,6 +1279,7 @@ function openSettings(){
   ov.querySelector('#btnExport').onclick=exportVault;
   ov.querySelector('#btnImport').onclick=()=>pickImportFile(true);
   ov.querySelector('#btnImportCsv').onclick=importChromeCsvViaFile;
+  ov.querySelector('#btnMigrateBm').onclick=openMigrateStore;
   ov.querySelector('#btnExportCsv').onclick=exportChromeCsv;
   ov.querySelector('#btnChPw').onclick=()=>{ closeModal(); openChangePw(); };
   ov.querySelector('#btnWipe').onclick=async()=>{
@@ -1410,6 +1475,795 @@ function openChangePw(){
       btn.disabled=false; btn.textContent='确认修改';
     }
   };
+}
+
+/* ================================================================
+ * 书签模块（合并自书签保险箱）
+ * 数据：state.vault.bookmarks = { app, v:1, roots:{bar,other}, folders:{}, bookmarks:{} }
+ * 文件夹树 + 标签 + Netscape 导入导出；删除进回收站（书签区独立回收站语义）
+ * ================================================================ */
+const BMIO={
+  async readImportFile(){ return await pickWebFile('.html,.htm'); },
+  async saveHtml(suggested, text){ downloadBlob(suggested, text, 'text/html'); return true; },
+  async openStoreFile(){ const f = await pickWebFile('.json,.bmark'); return f ? {path:null, text:f.text} : null; },
+  openExternal(url){ window.open(url, '_blank'); }
+};
+function downloadBlob(name, text, mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text], {type:mime+';charset=utf-8'}));
+  a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+function pickWebFile(accept){
+  return new Promise(res=>{
+    const inp=document.createElement('input');
+    inp.type='file'; inp.accept=accept; inp.style.cssText='position:fixed;top:-999px';
+    document.body.appendChild(inp);
+    inp.onchange=async()=>{ const f=inp.files[0]; res(f?{name:f.name, text:await f.text()}:null); inp.remove(); };
+    inp.click();
+  });
+};
+function mkFolder(name,parentId){ return {id:uid(), name, parentId, children:[], addDate:Date.now(), deleted:false}; }
+function mkBm(o){ return {id:uid(), title:o.title||'', url:o.url||'', folderId:o.folderId, tags:o.tags||[], note:o.note||'', icon:o.icon||null, addDate:o.addDate||Date.now(), favorite:false, deleted:false}; }
+function newBookmarkStore(){
+  const bar=mkFolder('书签栏',null), other=mkFolder('其他书签',null);
+  return {app:'BookmarkVault', v:1, updatedAt:new Date().toISOString(), roots:{bar:bar.id, other:other.id}, folders:{[bar.id]:bar, [other.id]:other}, bookmarks:{}};
+}
+function F(id){ return state.vault.bookmarks.folders[id]; }
+function B(id){ return state.vault.bookmarks.bookmarks[id]; }
+function rootId(key){ return state.vault.bookmarks.roots[key]; }
+function rootFolders(){
+  const r=state.vault.bookmarks.roots, out=[['bar',F(r.bar)],['other',F(r.other)]];
+  if(r.mobile && F(r.mobile)) out.push(['mobile',F(r.mobile)]);
+  return out.filter(x=>x[1]);
+}
+function pathNames(folderId){ const out=[]; let cur=F(folderId), g=0; while(cur&&g++<60){ out.unshift(cur.name); cur=cur.parentId?F(cur.parentId):null; } return out; }
+function pathStr(folderId){ return pathNames(folderId).join(' / '); }
+function isDescendantOf(fid,anc){ let cur=F(fid), g=0; while(cur&&g++<60){ if(cur.id===anc) return true; cur=cur.parentId?F(cur.parentId):null; } return false; }
+function allBms(){ return Object.values(state.vault.bookmarks.bookmarks).filter(b=>!b.deleted); }
+function childFolders(fid){ return (F(fid).children||[]).filter(id=>F(id)&&!F(id).deleted); }
+function childBms(fid){ return (F(fid).children||[]).filter(id=>B(id)&&!B(id).deleted); }
+function countBmsIn(fid){ let n=childBms(fid).length; for(const c of childFolders(fid)) n+=countBmsIn(c); return n; }
+function bmTagCounts(){ const m={}; for(const b of allBms()) for(const t of (b.tags||[])) m[t]=(m[t]||0)+1; return Object.entries(m).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'zh')); }
+function normUrl(u){ const t=String(u||'').trim(); if(!t) return ''; try{ const x=new URL(t); let p=x.pathname; if(p.length>1&&p.endsWith('/')) p=p.slice(0,-1); return x.protocol+'//'+x.host.toLowerCase()+p+x.search; }catch(e){ return t.replace(/\/+$/,''); } }
+function hostOf(u){ try{ return new URL(u).hostname.replace(/^www\./,''); }catch(e){ return String(u||'').slice(0,40); } }
+function urlSetOf(s){ const set=new Set(); for(const b of Object.values(s.bookmarks)) if(!b.deleted) set.add(normUrl(b.url)); return set; }
+function detachChild(id){
+  let p=null;
+  if(state.vault.bookmarks.bookmarks[id]) p=F(state.vault.bookmarks.bookmarks[id].folderId);
+  else if(F(id)&&F(id).parentId) p=F(F(id).parentId);
+  if(p) p.children=p.children.filter(x=>x!==id);
+}
+function normalizeUrlInput(u){ let t=String(u||'').trim(); if(t && !/^[a-z][a-z0-9+.-]*:/i.test(t) && /\./.test(t)) t='https://'+t; return t; }
+function ts2ms(v){ const n=Number(v); if(!v||!isFinite(n)||n<=0) return 0; return n>1e12?n:n*1000; }
+
+/* ---- Netscape HTML 解析 ---- */
+function directChild(el,tag){ for(const c of el.children) if(c.tagName===tag) return c; return null; }
+function parseNetscape(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const rootDl=doc.querySelector('dl');
+  if(!rootDl) throw new Error('未找到书签数据：这不是标准的书签导出文件（缺少 <DL> 结构）');
+  const forest={folders:[],bookmarks:[]};
+  walkDl(rootDl,forest);
+  if(!forest.folders.length && !forest.bookmarks.length) throw new Error('文件里没有解析到任何书签或文件夹');
+  return forest;
+}
+function mkBmFromFile(a,dd){
+  const url=(a.getAttribute('href')||'').trim();
+  let icon=a.getAttribute('icon')||null;
+  if(icon && !/^data:image\//i.test(icon)) icon=null;
+  const tags=(a.getAttribute('tags')||'').split(',').map(t=>t.trim()).filter(Boolean);
+  return {title:(a.textContent||'').trim(), url, addDate:ts2ms(a.getAttribute('add_date')), tags, note:dd?(dd.textContent||'').trim():'', icon};
+}
+function mkFolderFromFile(h3){ return {name:(h3.textContent||'').trim()||'未命名文件夹', addDate:ts2ms(h3.getAttribute('add_date')), toolbar:h3.hasAttribute('personal_toolbar_folder'), folders:[], bookmarks:[]}; }
+function walkDl(dl,out){
+  const kids=Array.from(dl.children);
+  const DL_STOP={DT:1,H3:1,A:1};
+  const scanSub=from=>{ let j=from; while(j<kids.length){ const t=kids[j].tagName; if(t==='DL') return [j,kids[j]]; if(DL_STOP[t]) return [j,null]; j++; } return [kids.length,null]; };
+  const anonFolder=()=>{ const f={name:'未命名文件夹',addDate:0,toolbar:false,folders:[],bookmarks:[]}; out.folders.push(f); return f; };
+  for(let i=0;i<kids.length;i++){
+    const el=kids[i], tag=el.tagName;
+    if(tag==='DT'){
+      const h3=directChild(el,'H3'), a=directChild(el,'A'), dd=directChild(el,'DD');
+      const innerDl=directChild(el,'DL');
+      if(h3){ const f=mkFolderFromFile(h3); out.folders.push(f); if(innerDl) walkDl(innerDl,f); else{ const [j,sub]=scanSub(i+1); if(sub){ walkDl(sub,f); i=j; } } }
+      else if(a){ out.bookmarks.push(mkBmFromFile(a,dd)); if(innerDl) walkDl(innerDl,anonFolder()); else{ const [j,sub]=scanSub(i+1); if(sub){ walkDl(sub,anonFolder()); i=j; } } }
+      else if(innerDl) walkDl(innerDl,anonFolder());
+      else{ const [j,sub]=scanSub(i+1); if(sub){ walkDl(sub,anonFolder()); i=j; } }
+    }else if(tag==='H3'){ const f=mkFolderFromFile(el); out.folders.push(f); const [j,sub]=scanSub(i+1); if(sub){ walkDl(sub,f); i=j; } }
+    else if(tag==='A') out.bookmarks.push(mkBmFromFile(el,null));
+    else if(tag==='DL') walkDl(el,out);
+    else if(tag==='DD'){ const last=out.bookmarks[out.bookmarks.length-1]; if(last&&!last.note) last.note=(el.textContent||'').trim(); }
+  }
+}
+function countForestFolders(f){ return f.folders.reduce((n,x)=>n+1+countForestFolders(x),0); }
+function countForestBms(f){ return f.bookmarks.length+f.folders.reduce((n,x)=>n+countForestBms(x),0); }
+function eachForestBm(f,cb){ f.bookmarks.forEach(cb); f.folders.forEach(x=>eachForestBm(x,cb)); }
+
+/* ---- Netscape 导出 ---- */
+function exportNetscape(s){
+  const L=[];
+  const escA=v=>String(v??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const escT=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const sec=ms=>Math.floor((ms||Date.now())/1000);
+  const nowSec=sec(Date.now());
+  function writeFolder(fid,ind,opts){
+    const f=s.folders[fid];
+    if(!f||f.deleted) return;
+    const attrs=['ADD_DATE="'+sec(f.addDate)+'"','LAST_MODIFIED="'+nowSec+'"'];
+    if(opts&&opts.toolbar) attrs.push('PERSONAL_TOOLBAR_FOLDER="true"');
+    L.push('\t'.repeat(ind)+'<DT><H3 '+attrs.join(' ')+'>'+escT(f.name)+'</H3>');
+    L.push('\t'.repeat(ind)+'<DL><p>');
+    for(const cid of (f.children||[])){
+      if(s.folders[cid]) writeFolder(cid,ind+1);
+      else if(s.bookmarks[cid]&&!s.bookmarks[cid].deleted) writeBm(s.bookmarks[cid],ind+1);
+    }
+    L.push('\t'.repeat(ind)+'</DL><p>');
+  }
+  function writeBm(b,ind){
+    const attrs=['HREF="'+escA(b.url)+'"','ADD_DATE="'+sec(b.addDate)+'"'];
+    if(b.tags&&b.tags.length) attrs.push('TAGS="'+escA(b.tags.join(','))+'"');
+    if(b.icon&&/^data:image\//i.test(b.icon)) attrs.push('ICON="'+escA(b.icon)+'"');
+    L.push('\t'.repeat(ind)+'<DT><A '+attrs.join(' ')+'>'+escT(b.title)+'</A>');
+    if(b.note) L.push('\t'.repeat(ind)+'<DD>'+escT(b.note));
+  }
+  L.push('<!DOCTYPE NETSCAPE-Bookmark-file-1>');
+  L.push('<!-- This is an automatically generated file. DO NOT EDIT! -->');
+  L.push('<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">');
+  L.push('<TITLE>Bookmarks</TITLE>');
+  L.push('<H1>Bookmarks</H1>');
+  L.push('<DL><p>');
+  writeFolder(s.roots.bar,1,{toolbar:true});
+  writeFolder(s.roots.other,1);
+  if(s.roots.mobile&&s.folders[s.roots.mobile]) writeFolder(s.roots.mobile,1);
+  L.push('</DL><p>');
+  return L.join('\n')+'\n';
+}
+
+/* ---- 导入（merge / newfolder / replace） ---- */
+function importStats(forest,existingSet){
+  const seen=new Set(); let bms=0,dupExisting=0,dupInFile=0;
+  eachForestBm(forest,fb=>{
+    if(!fb.url) return;
+    bms++;
+    const k=normUrl(fb.url);
+    if(seen.has(k)){ dupInFile++; return; }
+    seen.add(k);
+    if(existingSet&&existingSet.has(k)) dupExisting++;
+  });
+  return {folders:countForestFolders(forest), bms, dupExisting, dupInFile};
+}
+function importForest(forest,mode,existingSetBefore,fileName){
+  let s=state.vault.bookmarks;
+  const seen=new Set();
+  let added={folders:0,bms:0}, skipped=0;
+  const addBm=(fb,parentId)=>{
+    if(!fb.url){ skipped++; return; }
+    const k=normUrl(fb.url);
+    if(!k||seen.has(k)){ skipped++; return; }
+    seen.add(k);
+    if(mode==='merge'&&existingSetBefore.has(k)){ skipped++; return; }
+    const b=mkBm({title:fb.title||hostOf(fb.url), url:fb.url, folderId:parentId, tags:fb.tags, note:fb.note, icon:fb.icon, addDate:fb.addDate||Date.now()});
+    b.favorite=!!fb.favorite;
+    s.bookmarks[b.id]=b;
+    F(parentId).children.push(b.id);
+    added.bms++;
+  };
+  const freshFolder=(ff,parentId)=>{
+    const f=mkFolder(ff.name||'未命名文件夹',parentId);
+    f.addDate=ff.addDate||Date.now();
+    s.folders[f.id]=f;
+    F(parentId).children.push(f.id);
+    added.folders++;
+    return f.id;
+  };
+  const fillFresh=(ff,fid)=>{
+    for(const sub of ff.folders) fillFresh(sub,freshFolder(sub,fid));
+    for(const b of ff.bookmarks) addBm(b,fid);
+  };
+  const mergeInto=(ff,fid)=>{
+    let target=null;
+    for(const cid of F(fid).children){ const c=F(cid); if(c&&!c.deleted&&c.name===ff.name){ target=c; break; } }
+    const tid=target?target.id:freshFolder(ff,fid);
+    for(const sub of ff.folders) mergeInto(sub,tid);
+    for(const b of ff.bookmarks) addBm(b,tid);
+  };
+  const rootByKey=key=>{
+    if(!s.roots[key]){ const f=mkFolder(key==='mobile'?'移动设备书签':'其他书签',null); s.folders[f.id]=f; s.roots[key]=f.id; }
+    return s.roots[key];
+  };
+  const routeTop=ff=>{
+    if(ff.toolbar) return {key:'bar',contents:true};
+    if(ff.name==='其他书签') return {key:'other',contents:true};
+    if(ff.name==='移动设备书签') return {key:'mobile',contents:true};
+    return {key:'other',contents:false};
+  };
+  if(mode==='replace'){
+    const keepBar=s.roots.bar, keepOther=s.roots.other;
+    const barF=s.folders[keepBar], otherF=s.folders[keepOther];
+    barF.children=[]; otherF.children=[];
+    state.vault.bookmarks={app:'BookmarkVault', v:1, updatedAt:new Date().toISOString(), roots:{bar:keepBar, other:keepOther}, folders:{[keepBar]:barF, [keepOther]:otherF}, bookmarks:{}};
+    s=state.vault.bookmarks;
+    for(const ff of forest.folders){
+      const r=routeTop(ff);
+      const rid=rootByKey(r.key);
+      if(r.contents){ for(const sub of ff.folders) fillFresh(sub,freshFolder(sub,rid)); for(const b of ff.bookmarks) addBm(b,rid); }
+      else fillFresh(ff,freshFolder(ff,rid));
+    }
+    for(const b of forest.bookmarks) addBm(b,rootId('bar'));
+  }else if(mode==='newfolder'){
+    const nf=mkFolder('导入 · '+(fileName||'书签')+' · '+fmtDate(new Date().toISOString()),rootId('bar'));
+    s.folders[nf.id]=nf; F(rootId('bar')).children.push(nf.id); added.folders++;
+    for(const ff of forest.folders) fillFresh(ff,freshFolder(ff,nf.id));
+    for(const b of forest.bookmarks) addBm(b,nf.id);
+  }else{
+    for(const ff of forest.folders){
+      const r=routeTop(ff);
+      const rid=rootByKey(r.key);
+      if(r.contents){ for(const sub of ff.folders) mergeInto(sub,rid); for(const b of ff.bookmarks) addBm(b,rid); }
+      else mergeInto(ff,rid);
+    }
+    for(const b of forest.bookmarks) addBm(b,rootId('bar'));
+  }
+  return added;
+}
+
+/* ---- 书签：侧栏 ---- */
+function bmSetView(v, tag){
+  state.bm.view=v; state.bm.tag=tag||null;
+  state.bm.folderId=(v==='folder')?tag:null;
+  state.selectedId=null; state.bm.q='';
+  state.batchMode=false; state.selectedIds.clear();
+  $('#searchInput').value='';
+  renderAll();
+}
+function bmNavBtn(view,label,cnt,icon){
+  return '<button class="nav-item'+(state.bm.view===view?' active':'')+'" data-bview="'+view+'">'+icon+label+'<span class="cnt">'+cnt+'</span></button>';
+}
+function renderBmSidebar(){
+  $('#navAllTxt').textContent='全部书签';
+  const s=state.vault.bookmarks;
+  const all=allBms();
+  const trashN=Object.values(s.bookmarks).filter(b=>b.deleted).length+Object.values(s.folders).filter(f=>f.deleted).length;
+  $('#cntAll').textContent=all.length;
+  $('#cntFav').textContent=all.filter(b=>b.favorite).length;
+  $('#cntTrash').textContent=trashN;
+  $('#navAll').classList.toggle('active',state.bm.view==='all');
+  $('#navFav').classList.toggle('active',state.bm.view==='fav');
+  $('#navTrash').classList.toggle('active',state.bm.view==='trash');
+  let h='';
+  h+='<div id="navTree">';
+  h+=rootFolders().map(([k,f])=>bmTreeItem(f,0)).join('')||'<div style="font-size:12px;color:var(--tx2);padding:2px 12px">无文件夹</div>';
+  h+='</div>';
+  const tags=bmTagCounts();
+  h+='<div class="nav-label">标签</div>';
+  h+=tags.length
+    ?'<div id="navTagsBm">'+tags.map(([t,n])=>'<button class="tag-item'+(state.bm.view==='tag'&&state.bm.tag===t?' active':'')+'" data-btag="'+esc(t)+'">'+ICONS.tag+'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(t)+'</span><span class="cnt">'+n+'</span></button>').join('')+'</div>'
+    :'<div style="font-size:12px;color:var(--tx2);padding:2px 12px">暂无标签</div>';
+  $('#navBm').innerHTML=h;
+  $('#navBm').onclick=e=>{
+    const tw=e.target.closest('[data-tw]');
+    if(tw){ const id=tw.dataset.tw; state.bm.collapsed.has(id)?state.bm.collapsed.delete(id):state.bm.collapsed.add(id); renderBmSidebar(); return; }
+    const tf=e.target.closest('[data-bfolder]');
+    if(tf){ bmSetView('folder',tf.dataset.bfolder); return; }
+    const tg=e.target.closest('[data-btag]');
+    if(tg){ bmSetView('tag',tg.dataset.btag); return; }
+    const nv=e.target.closest('[data-bview]');
+    if(nv) bmSetView(nv.dataset.bview);
+  };
+}
+function bmTreeItem(f,depth){
+  const kids=(f.children||[]).filter(id=>F(id)&&!F(id).deleted);
+  const collapsed=state.bm.collapsed.has(f.id);
+  const active=state.bm.view==='folder'&&state.bm.folderId===f.id;
+  const tw=kids.length?'<span class="tw'+(collapsed?'':' open')+'" data-tw="'+f.id+'">'+ICONS.chev+'</span>':'<span class="tw empty"></span>';
+  let h='<div class="tree-item'+(active?' active':'')+'" data-bfolder="'+f.id+'" style="padding-left:'+(8+depth*14)+'px">'
+    +tw+ICONS.folder+'<span class="nm">'+esc(f.name)+'</span>'
+    +(kids.length?'<span class="cnt">'+kids.length+'</span>':'')+'</div>';
+  if(kids.length&&!collapsed) h+='<div class="tree-kids">'+kids.map(c=>bmTreeItem(F(c),depth+1)).join('')+'</div>';
+  return h;
+}
+function renderBmBar(){
+  const bar=$('#bmBar');
+  const v=state.bm.view;
+  let pth='<b>书签库</b>', acts=[];
+  if(v==='folder'){
+    const f=F(state.bm.folderId);
+    if(f){ pth='位置：<span class="mono">'+esc(pathStr(f.id))+'</span>';
+      if(f.parentId){ acts.push('<button class="btn small" id="bmRenF">'+ICONS.edit+'重命名</button>'); acts.push('<button class="btn small danger-ghost" id="bmDelF">'+ICONS.trash+'删除文件夹</button>'); } }
+  }
+  if(v==='trash'){ pth='回收站：书签可恢复或彻底删除'; acts.push('<button class="btn small danger-ghost" id="bmEmptyT">'+ICONS.trash+'清空回收站</button>'); }
+  acts.push('<button class="btn small" id="bmNewF">'+ICONS.folder+'新建文件夹</button>');
+  acts.push('<button class="btn small" id="bmImportN">'+ICONS.up+'导入 Netscape</button>');
+  acts.push('<button class="btn small" id="bmExportH">'+ICONS.down+'导出 HTML</button>');
+  bar.innerHTML='<span class="pth">'+pth+'</span><span class="sp">'+acts.join('')+'</span>';
+  bar.querySelector('#bmNewF').onclick=()=>openFolderModal(v==='folder'?state.bm.folderId:rootId('bar'), null);
+  bar.querySelector('#bmImportN').onclick=bmStartImport;
+  bar.querySelector('#bmExportH').onclick=bmExportHtml;
+  const rn=bar.querySelector('#bmRenF'); if(rn) rn.onclick=()=>openFolderModal(null,state.bm.folderId);
+  const df=bar.querySelector('#bmDelF'); if(df) df.onclick=()=>delFolderDlg(state.bm.folderId);
+  const et=bar.querySelector('#bmEmptyT'); if(et) et.onclick=emptyBmTrashDlg;
+}
+
+/* ---- 书签：列表 ---- */
+function bmListItems(){
+  const s=state.vault.bookmarks;
+  const q=(state.bm.q||'').trim().toLowerCase();
+  const bmSort=arr=>arr.slice().sort((x,y)=>(y.addDate||0)-(x.addDate||0));
+  if(q) return bmSort(allBms().filter(b=>[b.title,b.url,(b.tags||[]).join(' '),b.note].join(' ').toLowerCase().includes(q)));
+  const v=state.bm.view;
+  if(v==='all') return bmSort(allBms());
+  if(v==='fav') return bmSort(allBms().filter(b=>b.favorite));
+  if(v==='trash'){
+    const dfs=Object.values(s.folders).filter(f=>f.deleted&&(!f.parentId||!F(f.parentId)||F(f.parentId).deleted));
+    const dbs=Object.values(s.bookmarks).filter(b=>b.deleted);
+    return dfs.concat(dbs);
+  }
+  if(v==='tag') return bmSort(allBms().filter(b=>(b.tags||[]).includes(state.bm.tag)));
+  if(v==='folder'){
+    const f=F(state.bm.folderId);
+    if(!f) return [];
+    return bmSort((f.children||[]).filter(id=>B(id)&&!B(id).deleted).map(id=>B(id)));
+  }
+  return [];
+}
+function bmAvatar(b){
+  return '<div class="avatar" style="'+avStyle(b.title||b.url||'?')+'">'+esc(initial(b.title||hostOf(b.url)))+'</div>';
+}
+function renderBmList(){
+  const list=$('#entryList');
+  const arr=bmListItems();
+  if(!arr.length){
+    const total=allBms().length;
+    const v=state.bm.view;
+    const msg=state.bm.q.trim()?'没有匹配的书签':(v==='trash'?'回收站是空的':(v==='fav'?'还没有收藏的书签':(total===0?'书签区还是空的<br>点上方「导入 Netscape」从浏览器导入，或「新建」手动添加':'这个位置没有书签')));
+    list.innerHTML='<div class="empty" style="padding-top:80px">'+(total===0?LOGO(64).replace('width="64"','width="64" style="opacity:.5"'):ICONS.bmark)+'<p>'+msg+'</p></div>';
+    return;
+  }
+  const trashView=state.bm.view==='trash';
+  list.innerHTML=arr.map(it=>{
+    const isF=!!F(it.id);
+    const sel=!state.batchMode&&state.selectedId===it.id;
+    const chk=state.batchMode?'<label class="rowchk"><input type="checkbox" data-sel="'+it.id+'"'+(state.selectedIds.has(it.id)?' checked':'')+'></label>':'';
+    if(it.deleted){
+      const isFDel=!!F(it.id);
+      const fp=isFDel?(it.parentId&&F(it.parentId)?pathStr(it.parentId):'根目录'):(it.folderId&&F(it.folderId)?pathStr(it.folderId):'（原文件夹已删除）');
+      return '<div class="entry-row deleted" data-row="'+it.id+'">'+chk+
+        (isFDel?'<div class="avatar" style="background:var(--bg4);color:var(--tx2)">'+ICONS.folder+'</div>':bmAvatar(it))+
+        '<div class="e-main"><div class="e-title">'+esc(isFDel?it.name:(it.title||hostOf(it.url)))+'</div>'+
+        '<div class="e-sub">原位置：'+esc(fp)+(isFDel?(' · '+countBmsIn(it.id)+' 条书签'):'')+'</div></div>'+
+        '<div class="e-acts" style="display:flex"><button class="ibtn" data-brestore="'+it.id+'" title="恢复">'+ICONS.restore+'</button>'+
+        '<button class="ibtn" data-bpurge="'+it.id+'" title="彻底删除" style="color:var(--err)">'+ICONS.trash+'</button></div></div>';
+    }
+    if(isF){
+      return '<div class="entry-row'+(sel?' sel':'')+'" data-row="'+it.id+'">'+chk+
+        '<div class="avatar" style="background:var(--bg4);color:var(--acc)">'+ICONS.folder+'</div>'+
+        '<div class="e-main"><div class="e-title">'+esc(it.name)+'</div><div class="e-sub">文件夹 · '+countBmsIn(it.id)+' 条书签</div></div></div>';
+    }
+    const tags=(it.tags||[]).slice(0,2).map(t=>'<span class="chip">'+esc(t)+'</span>').join('');
+    const acts='<div class="e-acts">'+
+      '<button class="ibtn" data-bopen="'+it.id+'" title="打开链接">'+ICONS.open+'</button>'+
+      '<button class="ibtn" data-bcopyurl="'+it.id+'" title="复制网址">'+ICONS.copy+'</button></div>';
+    return '<div class="entry-row'+(sel?' sel':'')+'" data-row="'+it.id+'">'+chk+
+      bmAvatar(it)+
+      '<div class="e-main"><div class="e-title">'+esc(it.title||hostOf(it.url))+(it.favorite?'<span class="fav-mark">'+ICONS.star+'</span>':'')+'</div>'+
+      '<div class="e-sub">'+tags+esc(it.url)+'</div></div>'+acts+'</div>';
+  }).join('');
+}
+
+/* ---- 书签：详情 ---- */
+function renderBmDetail(){
+  const pane=$('#detailPane');
+  const b=state.selectedId?B(state.selectedId):null;
+  if(!b||b.deleted){
+    pane.innerHTML='<div class="empty">'+LOGO(64).replace('width="64"','width="64" style="opacity:.5"')+
+      '<p>'+(state.batchMode?'批量模式：在中间列表勾选书签<br>然后点击工具栏按钮':'办公保险库 · 书签区<br>选择左侧分类或文件夹查看书签')+'</p></div>';
+    return;
+  }
+  const tags=(b.tags&&b.tags.length)?b.tags.map(t=>'<span class="chip">'+esc(t)+'</span>').join(''):'<span style="color:var(--tx2);font-size:12.5px">无</span>';
+  pane.innerHTML=
+    '<div class="d-head">'+
+      '<div class="avatar big" style="'+avStyle(b.title||b.url)+'">'+esc(initial(b.title||hostOf(b.url)))+'</div>'+
+      '<div class="d-tt"><h2>'+esc(b.title||hostOf(b.url))+'</h2><div class="d-tags">'+tags+'</div></div>'+
+      '<div class="d-actions">'+
+        '<button class="btn primary" id="bOpen">'+ICONS.open+'打开链接</button>'+
+        '<button class="btn" id="bEdit">'+ICONS.edit+'编辑</button>'+
+        '<button class="btn" id="bMove">'+ICONS.folder+'移动到…</button>'+
+        '<button class="btn danger-ghost" id="bDel">'+ICONS.trash+'删除</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="d-body">'+
+      '<div class="frow"><div class="flabel2">网址</div>'+
+        '<div class="fval"><a href="'+esc(b.url)+'" target="_blank" rel="noopener noreferrer">'+esc(b.url)+'</a></div>'+
+        '<button class="ibtn" id="bCopyUrl" title="复制网址">'+ICONS.copy+'</button></div>'+
+      (b.note?'<div style="margin-top:18px"><div class="flabel2" style="margin-bottom:9px">'+ICONS.note+' 备注</div><div class="notes-box">'+esc(b.note)+'</div></div>':'')+
+      '<div class="meta-line">'+
+        '<span>'+ICONS.folder+'位置：'+esc(b.folderId&&F(b.folderId)?pathStr(b.folderId):'—')+'</span>'+
+        '<span>'+ICONS.clock+'添加于 '+fmtTime(b.addDate)+'</span>'+
+        '<span>'+ICONS.star+(b.favorite?'已收藏':'未收藏')+'</span>'+
+      '</div>'+
+    '</div>';
+  pane.querySelector('#bOpen').onclick=()=>BMIO.openExternal(b.url);
+  pane.querySelector('#bCopyUrl').onclick=()=>copyText(b.url,'网址');
+  pane.querySelector('#bEdit').onclick=()=>openBmModal(b.id);
+  pane.querySelector('#bMove').onclick=()=>openMoveModal([b.id]);
+  pane.querySelector('#bDel').onclick=()=>{
+    delBm(b.id);
+  };
+}
+
+/* ---- 书签：列表交互 ---- */
+function bmListClick(e){
+  const row=e.target.closest('[data-row]');
+  if(!row) return;
+  const id=row.dataset.row;
+  const openBtn=e.target.closest('[data-bopen]');
+  if(openBtn){ const b=B(id); if(b) BMIO.openExternal(b.url); return; }
+  const cpBtn=e.target.closest('[data-bcopyurl]');
+  if(cpBtn){ const b=B(id); if(b) copyText(b.url,'网址'); return; }
+  const rsBtn=e.target.closest('[data-brestore]');
+  if(rsBtn){ restoreBm(id); return; }
+  const pgBtn=e.target.closest('[data-bpurge]');
+  if(pgBtn){ purgeBm(id); return; }
+  if(state.batchMode){
+    if(state.selectedIds.has(id)) state.selectedIds.delete(id);
+    else state.selectedIds.add(id);
+    renderBmBatchBar(); renderBmList();
+    return;
+  }
+  if(state.bm.view==='trash') return; // 回收站里的行不响应点击进入
+  if(F(id)){ bmSetView('folder',id); return; } // 文件夹行：进入该文件夹
+  state.selectedId=id;
+  renderBmList(); renderBmDetail();
+}
+
+/* ---- 书签：增删改 ---- */
+function openBmModal(bmId){
+  const isEdit=!!bmId;
+  const b=isEdit?B(bmId):null;
+  const defFolder=(state.bm.view==='folder'&&F(state.bm.folderId))?state.bm.folderId:rootId('bar');
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">'+(isEdit?'编辑书签':'新建书签')+'</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      '<label class="flabel">标题</label>'+
+      '<input class="input" id="fbTitle" value="'+esc(isEdit?b.title:'')+'" placeholder="显示名称，留空则使用网址">'+
+      '<label class="flabel">网址</label>'+
+      '<input class="input mono" id="fbUrl" value="'+esc(isEdit?b.url:'')+'" placeholder="https://…">'+
+      '<label class="flabel">文件夹</label>'+
+      '<select class="input" id="fbFolder">'+folderOptionsHtml(isEdit?b.folderId:defFolder,null)+'</select>'+
+      '<label class="flabel">标签（逗号分隔）</label>'+
+      '<input class="input" id="fbTags" value="'+esc(isEdit?(b.tags||[]).join(', '):'')+'" placeholder="工作, 工具, 阅读…">'+
+      '<label class="flabel">备注</label>'+
+      '<textarea class="input" id="fbNote" placeholder="可选">'+esc(isEdit?b.note:'')+'</textarea>'+
+      '<label class="chk" style="margin:16px 0 8px"><input type="checkbox" id="fbFav"'+(isEdit&&b.favorite?' checked':'')+'>收藏（星标）</label>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="fbSave">保存</button></div>',
+    500);
+  const root=ov.querySelector('.modal');
+  root.querySelectorAll('[data-x]').forEach(x=>x.onclick=closeModal);
+  root.querySelector('#fbSave').onclick=async()=>{
+    const title=root.querySelector('#fbTitle').value.trim();
+    const url=normalizeUrlInput(root.querySelector('#fbUrl').value);
+    if(!url){ toast('请填写网址'); return; }
+    if(!isHttpUrl(url)&&!/^(javascript:|file:|chrome:|edge:|about:)/i.test(url)){ toast('网址格式不正确（支持 http/https）'); return; }
+    const tags=root.querySelector('#fbTags').value.split(/[,，]/).map(t=>t.trim()).filter(Boolean).slice(0,8);
+    const note=root.querySelector('#fbNote').value;
+    const fav=root.querySelector('#fbFav').checked;
+    const fid=root.querySelector('#fbFolder').value;
+    const now=Date.now();
+    if(isEdit){
+      const old=b.folderId;
+      Object.assign(b,{title,url,tags,note,favorite:fav});
+      if(fid!==old){ detachChild(b.id); b.folderId=fid; F(fid).children.push(b.id); }
+      state.selectedId=b.id;
+    }else{
+      const nb=mkBm({title,url,folderId:fid,tags,note});
+      nb.favorite=fav;
+      state.vault.bookmarks.bookmarks[nb.id]=nb;
+      F(fid).children.push(nb.id);
+      if(state.bm.view==='folder'&&state.bm.folderId!==fid) bmSetView('folder',fid);
+      state.selectedId=nb.id;
+    }
+    await persist(); closeModal(); renderAll();
+    toast(isEdit?'已保存书签':'已添加书签');
+  };
+}
+function delBm(id){
+  const b=B(id); if(!b) return;
+  b.deleted=true;
+  if(state.selectedId===id) state.selectedId=null;
+  state.selectedIds.delete(id);
+  persist().then(renderAll);
+  toast('已移入回收站「'+(b.title||hostOf(b.url))+'」');
+}
+function restoreBm(id){
+  const b=B(id); if(!b) return;
+  b.deleted=false;
+  const f=F(b.folderId);
+  if(!f||f.deleted){ detachChild(id); b.folderId=rootId('bar'); F(rootId('bar')).children.push(id); }
+  persist().then(renderAll); toast('已恢复书签');
+}
+function purgeBm(id){
+  detachChild(id); delete state.vault.bookmarks.bookmarks[id];
+  if(state.selectedId===id) state.selectedId=null;
+  persist().then(renderAll);
+}
+function delFolderDlg(fid){
+  const f=F(fid); if(!f) return;
+  const n=countBmsIn(fid);
+  confirmDlg('删除文件夹','将删除文件夹「'+f.name+'」及其内部的 '+n+' 条书签，内容会移入回收站，可随时恢复。','删除',true)
+    .then(async ok=>{
+      if(!ok) return;
+      f.deleted=true;
+      if(state.bm.view==='folder'&&state.bm.folderId===fid) bmSetView('all'); else renderAll();
+      await persist();
+      toast('文件夹已移入回收站');
+    });
+}
+function restoreFolder(id){
+  const f=F(id); if(!f) return;
+  f.deleted=false;
+  let cur=f, g=0;
+  while(cur.parentId&&g++<60){ const p=F(cur.parentId); if(!p||!p.deleted) break; p.deleted=false; cur=p; }
+  if(cur.parentId&&!F(cur.parentId)){ cur.parentId=rootId('other'); F(rootId('other')).children.push(cur.id); }
+  persist().then(renderAll); toast('文件夹已恢复');
+}
+function purgeFolder(id){
+  const f=F(id); if(!f) return;
+  detachChild(id);
+  const eat=fid=>{
+    const ff=F(fid); if(!ff) return;
+    for(const cid of (ff.children||[])){
+      if(state.vault.bookmarks.bookmarks[cid]) delete state.vault.bookmarks.bookmarks[cid];
+      else eat(cid);
+    }
+    delete state.vault.bookmarks.folders[fid];
+  };
+  eat(id);
+  ['bar','other','mobile'].forEach(k=>{ if(state.vault.bookmarks.roots[k]===id) delete state.vault.bookmarks.roots[k]; });
+  if(state.bm.view==='folder'&&state.bm.folderId===id) state.bm.view='all';
+  persist().then(renderAll);
+}
+function emptyBmTrashDlg(){
+  const n=Object.values(state.vault.bookmarks.bookmarks).filter(b=>b.deleted).length
+    +Object.values(state.vault.bookmarks.folders).filter(f=>f.deleted).length;
+  confirmDlg('清空回收站','将彻底删除回收站里的所有书签和文件夹（含文件夹内书签），此操作不可恢复。','清空',true)
+    .then(async ok=>{
+      if(!ok) return;
+      Object.values(state.vault.bookmarks.folders).filter(f=>f.deleted).forEach(f=>purgeFolder(f.id));
+      Object.values(state.vault.bookmarks.bookmarks).filter(b=>b.deleted).forEach(b=>purgeBm(b.id));
+      await persist(); renderAll(); toast('回收站已清空');
+    });
+}
+
+/* ---- 书签：文件夹与移动 ---- */
+function moveTargets(excludeFid){
+  const out=[];
+  const walk=(fid,depth)=>{
+    const f=F(fid); if(!f||f.deleted) return;
+    out.push({id:fid,name:f.name,depth});
+    for(const cid of childFolders(fid)){
+      if(excludeFid&&(cid===excludeFid||isDescendantOf(cid,excludeFid))) continue;
+      walk(cid,depth+1);
+    }
+  };
+  for(const [,rf] of rootFolders()){
+    if(excludeFid&&(rf.id===excludeFid||isDescendantOf(rf.id,excludeFid))) continue;
+    walk(rf.id,0);
+  }
+  return out;
+}
+function folderOptionsHtml(selFid,excludeFid){
+  return moveTargets(excludeFid).map(o=>
+    '<option value="'+o.id+'"'+(o.id===selFid?' selected':'')+'>'+('&nbsp;'.repeat(o.depth*4))+esc(o.name)+'</option>').join('');
+}
+function openFolderModal(parentId,renameId){
+  const isRename=!!renameId;
+  const f=isRename?F(renameId):null;
+  const defParent=parentId||(state.bm.view==='folder'?state.bm.folderId:rootId('bar'));
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">'+(isRename?'重命名文件夹':'新建文件夹')+'</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      (isRename?'':'<label class="flabel">位置</label><select class="input" id="fdParent">'+folderOptionsHtml(defParent,null)+'</select>')+
+      '<label class="flabel">名称</label><input class="input" id="fdName" value="'+esc(isRename?f.name:'')+'" placeholder="文件夹名称">'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="fdOk">'+(isRename?'保存':'创建')+'</button></div>',
+    420);
+  ov.querySelectorAll('[data-x]').forEach(x=>x.onclick=closeModal);
+  ov.querySelector('#fdName').focus();
+  ov.querySelector('#fdOk').onclick=async()=>{
+    const name=ov.querySelector('#fdName').value.trim();
+    if(!name){ toast('请填写名称'); return; }
+    if(isRename){ f.name=name; toast('已重命名'); }
+    else{
+      const pid=ov.querySelector('#fdParent').value;
+      const nf=mkFolder(name,pid);
+      state.vault.bookmarks.folders[nf.id]=nf; F(pid).children.push(nf.id);
+      toast('文件夹已创建');
+    }
+    await persist(); closeModal(); renderAll();
+  };
+}
+function openMoveModal(bmIds){
+  const ids=bmIds.slice();
+  if(!ids.length) return;
+  const targets=moveTargets(null);
+  if(!targets.length){ toast('没有可选的目标文件夹'); return; }
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">移动到…</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body"><p style="color:var(--tx1);font-size:12.5px">已选择 '+ids.length+' 项，点击目标文件夹后确认。</p>'+
+      '<div id="mvTree" style="max-height:300px;overflow-y:auto;margin-top:6px">'+targets.map(o=>
+        '<div class="tree-item" data-mv="'+o.id+'" style="padding-left:'+(9+o.depth*16)+'px">'+ICONS.folder+esc(o.name)+'</div>').join('')+'</div></div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="mvOk">移动</button></div>',
+    430);
+  ov.querySelectorAll('[data-x]').forEach(x=>x.onclick=closeModal);
+  let target=targets[0].id;
+  const mark=()=>{ ov.querySelectorAll('[data-mv]').forEach(el=>el.classList.toggle('active',el.dataset.mv===target)); };
+  mark();
+  ov.querySelector('#mvTree').onclick=e=>{
+    const el=e.target.closest('[data-mv]'); if(!el) return;
+    target=el.dataset.mv; mark();
+  };
+  ov.querySelector('#mvOk').onclick=()=>{
+    let n=0;
+    for(const id of ids){
+      const b=B(id);
+      if(b&&!b.deleted){
+        if(b.folderId===target) continue;
+        detachChild(id); b.folderId=target; F(target).children.push(id); n++;
+      }else{
+        const f=F(id);
+        if(f&&!f.deleted&&f.parentId!==null&&f.id!==target&&!isDescendantOf(target,id)){
+          detachChild(id); f.parentId=target; F(target).children.push(id); n++;
+        }
+      }
+    }
+    closeModal(); persist().then(renderAll);
+    toast(n?('已移动 '+n+' 项'):'所选项目已在该文件夹中');
+  };
+}
+
+/* ---- 书签：批量 ---- */
+function renderBmBatchBar(){
+  const bar=$('#batchBar');
+  if(!state.batchMode){ bar.classList.add('hidden'); bar.innerHTML=''; return; }
+  bar.classList.remove('hidden');
+  const trashView=state.bm.view==='trash';
+  bar.innerHTML='<span>已选 <b>'+state.selectedIds.size+'</b> 项</span>'+
+    '<button class="btn small" id="bSelAll">全选当前</button>'+
+    (trashView?'<button class="btn small" id="bRestoreSel">'+ICONS.restore+'恢复所选</button><button class="btn small danger" id="bDelSel">'+ICONS.trash+'彻底删除</button>'
+              :'<button class="btn small" id="bMoveSel">'+ICONS.folder+'移动到…</button><button class="btn small danger" id="bDelSel">'+ICONS.trash+'删除所选</button>')+
+    '<button class="btn small" id="bExitSel">完成</button>';
+  $('#bSelAll').onclick=()=>{ bmListItems().forEach(x=>state.selectedIds.add(x.id)); renderBmBatchBar(); renderBmList(); };
+  $('#bDelSel').onclick=bmBatchDelete;
+  $('#bExitSel').onclick=()=>{ state.batchMode=false; state.selectedIds.clear(); renderAll(); };
+  const rs=$('#bRestoreSel'); if(rs) rs.onclick=bmBatchRestore;
+  const mv=$('#bMoveSel'); if(mv) mv.onclick=()=>openMoveModal([...state.selectedIds]);
+}
+async function bmBatchDelete(){
+  const n=state.selectedIds.size;
+  if(!n){ toast('请先勾选要操作的项目'); return; }
+  if(state.bm.view==='trash'){
+    if(!(await confirmDlg('彻底删除','确定将选中的 '+n+' 项彻底删除吗？此操作不可恢复。','彻底删除',true))) return;
+    for(const id of state.selectedIds){
+      if(B(id)) purgeBm(id);
+      else if(F(id)) purgeFolder(id);
+    }
+    state.selectedIds.clear(); state.batchMode=false;
+    await persist(); renderAll();
+    toast('已彻底删除 '+n+' 项');
+  }else{
+    for(const id of state.selectedIds){
+      const b=B(id); if(b&&!b.deleted) b.deleted=true;
+      const f=F(id); if(f&&!f.deleted) f.deleted=true;
+    }
+    state.selectedIds.clear(); state.batchMode=false;
+    await persist(); renderAll();
+    toast('已移入回收站 '+n+' 项');
+  }
+}
+async function bmBatchRestore(){
+  const n=state.selectedIds.size;
+  if(!n){ toast('请先勾选要恢复的项目'); return; }
+  for(const id of state.selectedIds){
+    if(B(id)) restoreBm(id);
+    else if(F(id)) restoreFolder(id);
+  }
+  state.selectedIds.clear(); state.batchMode=false;
+  await persist(); renderAll();
+  toast('已恢复 '+n+' 项');
+}
+
+/* ---- 书签：Netscape 导入导出 ---- */
+async function bmStartImport(){
+  let file;
+  try{ file=await BMIO.readImportFile(); }catch(e){ toast('读取文件失败：'+e.message); return; }
+  if(!file) return;
+  let forest;
+  try{ forest=parseNetscape(file.text); }
+  catch(e){ toast(e.message); return; }
+  const st=importStats(forest,urlSetOf(state.vault.bookmarks));
+  const baseName=file.name.replace(/\.html?$/i,'');
+  const ov=openModal(
+    '<div class="m-head"><div class="m-title">导入书签</div><button class="ibtn" data-x>'+ICONS.x+'</button></div>'+
+    '<div class="m-body">'+
+      '<p style="color:var(--tx1);font-size:12.5px">'+esc(file.name)+' — 共 '+st.folders+' 个文件夹、'+st.bms+' 条书签'+(st.dupInFile?'（文件内重复 '+st.dupInFile+' 条）':'')+'。</p>'+
+      '<div class="chk-row" style="margin-top:10px" id="iwModes">'+
+        '<label class="chk"><input type="radio" name="iwMode" value="merge" checked>合并去重（推荐）</label>'+
+        '<label class="chk"><input type="radio" name="iwMode" value="newfolder">导入到新文件夹</label>'+
+        '<label class="chk"><input type="radio" name="iwMode" value="replace">替换整个书签库</label>'+
+      '</div>'+
+      '<p style="color:var(--tx2);font-size:11.5px;margin-top:8px;line-height:1.7">合并：网址相同的跳过，同名文件夹并入现有文件夹。<br>替换：清空当前书签库后重新导入。</p>'+
+    '</div>'+
+    '<div class="m-foot"><button class="btn" data-x>取消</button><button class="btn primary" id="iwOk">开始导入</button></div>',
+    500);
+  ov.querySelectorAll('[data-x]').forEach(x=>x.onclick=closeModal);
+  ov.querySelector('#iwOk').onclick=async()=>{
+    const mode=ov.querySelector('input[name="iwMode"]:checked').value;
+    if(mode==='replace' && !(await confirmDlg('确认替换','当前书签库将被完全覆盖。','替换',true))) return;
+    const res=importForest(forest,mode,urlSetOf(state.vault.bookmarks),baseName);
+    await persist(); renderAll(); closeModal();
+    toast('导入完成：新增 '+res.bms+' 条书签、'+res.folders+' 个文件夹', 4200);
+  };
+}
+async function bmExportHtml(){
+  const n=allBms().length;
+  if(!n){ toast('书签库是空的，没有可导出的内容'); return; }
+  const text=exportNetscape(state.vault.bookmarks);
+  const ok=await BMIO.saveHtml('Chrome书签_'+fmtDate(new Date().toISOString())+'.html', text);
+  if(ok) toast('已导出 '+n+' 条书签');
+}
+
+/* ---- 书签：旧书签库迁移 ---- */
+function storeToForest(s){
+  const forest={folders:[],bookmarks:[]};
+  const walk=(fid,out)=>{
+    const f=s.folders[fid]; if(!f) return;
+    for(const cid of (f.children||[])){
+      if(s.bookmarks[cid]){
+        const b=s.bookmarks[cid];
+        if(!b.deleted) out.bookmarks.push({title:b.title,url:b.url,tags:b.tags||[],note:b.note||'',icon:b.icon||null,addDate:b.addDate,favorite:!!b.favorite});
+      }else{
+        const c=s.folders[cid];
+        if(c&&!c.deleted){ const nf={name:c.name,addDate:c.addDate,toolbar:false,folders:[],bookmarks:[]}; out.folders.push(nf); walk(cid,nf); }
+      }
+    }
+  };
+  ['bar','other','mobile'].forEach(k=>{ if(s.roots&&s.roots[k]&&s.folders[s.roots[k]]) walk(s.roots[k],forest); });
+  return forest;
+}
+async function openMigrateStore(){
+  let f;
+  try{ f=await BMIO.openStoreFile(); }catch(e){ toast('读取失败：'+e.message); return; }
+  if(!f) return;
+  try{
+    let raw=JSON.parse(f.text);
+    const store=(raw&&raw.data&&raw.data.roots)?raw.data:raw;
+    if(!store||!store.roots||!store.folders||!store.bookmarks) throw new Error('不是有效的书签库文件');
+    const forest=storeToForest(store);
+    if(!countForestBms(forest)&&!countForestFolders(forest)) throw new Error('这个书签库是空的');
+    const st=importStats(forest,urlSetOf(state.vault.bookmarks));
+    if(!(await confirmDlg('导入旧书签库','解析到 '+st.bms+' 条书签、'+st.folders+' 个文件夹（与现有重复 '+st.dupExisting+' 条会跳过），将合并到书签区。确定导入？','导入',false))) return;
+    const res=importForest(forest,'merge',urlSetOf(state.vault.bookmarks),'旧书签库');
+    await persist(); renderAll();
+    toast('迁移完成：新增 '+res.bms+' 条书签、'+res.folders+' 个文件夹', 4600);
+  }catch(e){ toast('导入失败：'+e.message); }
+}
+
+/* ---- 类型页签 ---- */
+$('#tabPw').onclick=()=>setType('pw');
+$('#tabBm').onclick=()=>setType('bm');
+function setType(t){
+  if(state.type===t) return;
+  state.type=t;
+  state.selectedId=null; state.selectedIds.clear(); state.batchMode=false;
+  state.filter={view:'all',tag:null,q:''};
+  state.bm.view='all'; state.bm.tag=null; state.bm.folderId=null; state.bm.q='';
+  $('#searchInput').value='';
+  $('#searchInput').placeholder=t==='bm'?'搜索书签 / 网址 / 标签…　Ctrl+K':'搜索名称 / 用户名 / 备注…　Ctrl+K';
+  $('#tabPw').classList.toggle('active',t==='pw');
+  $('#tabBm').classList.toggle('active',t==='bm');
+  renderAll();
 }
 
 /* ================================================================

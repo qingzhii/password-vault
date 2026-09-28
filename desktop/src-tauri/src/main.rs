@@ -6,6 +6,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{fs, io::Write, path::PathBuf};
 use tauri::{menu::{Menu, MenuItem, PredefinedMenuItem}, tray::TrayIconBuilder, Emitter, Manager};
@@ -170,6 +171,47 @@ fn pick_save_dialog(suggested: Option<String>) -> Result<Option<String>, String>
         .map(|p| p.to_string_lossy().into_owned()))
 }
 
+#[tauri::command]
+fn pick_import_html_dialog() -> Result<Option<String>, String> {
+    Ok(rfd::FileDialog::new()
+        .add_filter("书签 HTML 文件", &["html", "htm"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+fn pick_save_html_dialog(suggested: Option<String>) -> Result<Option<String>, String> {
+    let mut d = rfd::FileDialog::new().add_filter("书签 HTML 文件", &["html"]);
+    if let Some(name) = suggested {
+        d = d.set_file_name(&name);
+    }
+    Ok(d.save_file()
+        .map(|p| p.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+fn pick_open_store_dialog() -> Result<Option<String>, String> {
+    Ok(rfd::FileDialog::new()
+        .add_filter("书签库文件", &["json", "bmark"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().into_owned()))
+}
+
+/// 用系统默认浏览器打开网址；只允许 http(s)，防止参数注入
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    let u = url.trim();
+    if !u.starts_with("http://") && !u.starts_with("https://") {
+        return Err("仅支持 http/https 链接".into());
+    }
+    std::process::Command::new("cmd")
+        .args(["/c", "start", "", u])
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// 前端在解锁后把收藏条目同步过来，重建托盘菜单（点击后由前端复制密码）
 #[tauri::command]
 fn tray_set_favorites(app: tauri::AppHandle, items: Vec<FavItem>) -> Result<(), String> {
@@ -234,7 +276,7 @@ fn main() {
             let menu = Menu::with_items(handle, &[&display, &sep, &lock, &quit])?;
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("密码保险库")
+                .tooltip("办公保险库")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
@@ -294,6 +336,10 @@ fn main() {
             pick_open_dialog,
             pick_csv_dialog,
             pick_save_dialog,
+            pick_import_html_dialog,
+            pick_save_html_dialog,
+            pick_open_store_dialog,
+            open_external,
             tray_set_favorites,
             set_close_to_tray
         ])
